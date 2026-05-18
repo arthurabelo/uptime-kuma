@@ -4,7 +4,7 @@ stages:
 deploy_uptime_kuma:
   stage: deploy
   tags:
-    - uptimekuma
+    - irlanda-prod
   before_script:
     # Garante que o Runner use o contexto do Docker Rootless
     - export PATH=$PATH:$HOME/bin
