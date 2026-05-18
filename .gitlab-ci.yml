@@ -1,0 +1,31 @@
+stages:
+  - deploy
+
+deploy_uptime_kuma:
+  stage: deploy
+  tags:
+    - uptimekuma
+  before_script:
+    # Garante que o Runner use o contexto do Docker Rootless
+    - export PATH=$PATH:$HOME/bin
+    - export DOCKER_HOST=unix://$XDG_RUNTIME_DIR/docker.sock
+  script:
+    - echo "Iniciando o build da imagem customizada do Uptime Kuma..."
+    - docker build -t uptime-kuma-custom .
+
+    - echo "Limpando containers antigos..."
+    - docker stop uptime-kuma || true
+    - docker rm uptime-kuma || true
+
+    - echo "Subindo a nova versão customizada..."
+    # IMPORTANTE: Altere o caminho do volume (/home/seu-usuario/...) para uma pasta real do seu usuário
+    - docker run -d \
+      --name uptime-kuma \
+      --restart always \
+      -p 3001:3001 \
+      -v $HOME/uptime-kuma-data:/app/data \
+      uptime-kuma-custom
+
+    - echo "Deploy realizado com sucesso!"
+  only:
+    - tjpi
