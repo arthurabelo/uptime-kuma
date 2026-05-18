@@ -11,7 +11,7 @@ deploy_uptime_kuma:
     - export DOCKER_HOST=unix://$XDG_RUNTIME_DIR/docker.sock
   script:
     - echo "Iniciando o build..."
-    - docker build --target rootless -t uptime-kuma-custom -f docker/dockerfile .
+    - docker build --target release -t uptime-kuma-custom -f docker/dockerfile .
     - echo "Limpando containers antigos..."
     - docker stop uptime-kuma || true
     - docker rm uptime-kuma || true
