@@ -21,7 +21,7 @@ deploy_uptime_kuma:
         --name uptime-kuma \
         --restart always \
         -p 3001:3001 \
-        -v $HOME/uptime-kuma-data:/app/data \
+        -v /opt/uptimekuma/data:/app/data \
         uptime-kuma-custom
     - echo "Deploy realizado com sucesso!"
   only:
