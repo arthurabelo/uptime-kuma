@@ -114,6 +114,19 @@
                     </label>
                 </div>
 
+                <!-- Enable Audible Alerts -->
+                <div class="my-3 form-check form-switch">
+                    <input
+                        id="enable-audio-alerts"
+                        v-model="config.enableAudibleAlerts"
+                        class="form-check-input"
+                        type="checkbox"
+                    />
+                    <label class="form-check-label" for="enable-audio-alerts">
+                        {{ $t("enableAudibleAlerts") }}
+                    </label>
+                </div>
+                
                 <!-- Domain Name List -->
                 <div class="my-3">
                     <label class="form-label">
@@ -606,15 +619,15 @@ import dayjs from "dayjs";
 import duration from "dayjs/plugin/duration";
 import Favico from "favico.js";
 // import highlighting library (you can use any library you want just return html string)
-import { highlight, languages } from "prismjs/components/prism-core";
+import {highlight, languages} from "prismjs/components/prism-core";
 import "prismjs/components/prism-css";
 import "prismjs/themes/prism-tomorrow.css"; // import syntax highlighting styles
 import ImageCropUpload from "vue-image-crop-upload";
 // import Prism Editor
-import { PrismEditor } from "vue-prism-editor";
+import {PrismEditor} from "vue-prism-editor";
 import "vue-prism-editor/dist/prismeditor.min.css"; // import the styles somewhere
-import { useToast } from "vue-toastification";
-import { marked } from "marked";
+import {useToast} from "vue-toastification";
+import {marked} from "marked";
 import DOMPurify from "dompurify";
 import Confirm from "../components/Confirm.vue";
 import PublicGroupList from "../components/PublicGroupList.vue";
@@ -622,14 +635,14 @@ import MaintenanceTime from "../components/MaintenanceTime.vue";
 import IncidentHistory from "../components/IncidentHistory.vue";
 import IncidentManageModal from "../components/IncidentManageModal.vue";
 import IncidentEditForm from "../components/IncidentEditForm.vue";
-import { getResBaseURL } from "../util-frontend";
+import {getResBaseURL} from "../util-frontend";
 import {
+    MAINTENANCE,
     STATUS_PAGE_ALL_DOWN,
     STATUS_PAGE_ALL_UP,
     STATUS_PAGE_MAINTENANCE,
     STATUS_PAGE_PARTIAL_DOWN,
     UP,
-    MAINTENANCE,
 } from "../util.ts";
 import Tag from "../components/Tag.vue";
 import VueMultiselect from "vue-multiselect";
@@ -645,6 +658,8 @@ let feedInterval;
 const favicon = new Favico({
     animation: "none",
 });
+
+let alreadyAnnounced = {};
 
 export default {
     components: {
@@ -958,6 +973,42 @@ export default {
                     }
                 }
             }
+        },
+        
+        "$root.heartbeatList": {
+            handler(newHeartbeats) {
+                if (this.config.enableAudibleAlerts) {return;}
+                if (!newHeartbeats) {return;}
+
+                const PageMonitors = {};
+                if (this.$root.publicGroupList) {
+                    this.$root.publicGroupList.forEach((grupo) => {
+                        if (grupo.monitorList) {
+                            grupo.monitorList.forEach((monitor) => {
+                                PageMonitors[monitor.id] = monitor.name;
+                            });
+                        }
+                    });
+                }
+
+                for (let id in newHeartbeats) {
+                    if (!newHeartbeats[id]) {continue;}
+
+                    const BeatsHistory = newHeartbeats[id];
+                    if (!BeatsHistory || !BeatsHistory.length === 0) {continue;}
+
+                    const LastBeat = BeatsHistory[BeatsHistory.length - 1];
+                    const currentStatus = LastBeat.status;
+
+                    if (currentStatus === 0 && !alreadyAnnounced[id]) {
+                        this.announceDownStatus(PageMonitors[id]);
+                        alreadyAnnounced[id] = true;
+                    } else if (currentStatus === 1) {
+                        alreadyAnnounced[id] = false;
+                    }
+                }
+            },
+            deep: true
         },
     },
     async created() {
@@ -1487,6 +1538,52 @@ export default {
                     this.loadIncidentHistory();
                 }
             });
+        },
+        /**
+         * Synthesize voice
+         * @param {string} MonitorName
+         * @returns {void}
+         */
+        announceDownStatus(MonitorName) {
+
+            /*
+            if ("speechSynthesis" in window) {
+                window.speechSynthesis.cancel();
+
+                const message = new SpeechSynthesisUtterance(`${MonitorName} caiu`);
+                message.lang = "pt-BR";
+                message.rate = 1.0;
+                message.volume = 1.0;
+
+                window.speechSynthesis.speak(message);
+            }
+            */
+
+            const audioContext = new (window.AudioContext || window.webkitAudioContext) ();
+
+            const playBeep = (time) => {
+                const oscillator = audioContext.createOscillator();
+                const volumeControl = audioContext.createGain();
+
+                oscillator.connect(volumeControl);
+                volumeControl.connect(audioContext.destination);
+
+                oscillator.type = 'square';
+                oscillator.frequency.value = 900;
+
+                volumeControl.gain.setValueAtTime(1.0, time);
+                volumeControl.gain.exponentialRampToValueAtTime(0.01, time + 0.3);
+
+                oscillator.start(time);
+                oscillator.stop(time + 0.3);
+            };
+
+            const now = audioContext.currentTime;
+
+            playBeep(now);
+            playBeep(now + 0.2);
+            playBeep(now + 0.4);
+            playBeep(now + 0.6);
         },
     },
 };
