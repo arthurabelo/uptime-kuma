@@ -165,6 +165,10 @@ export default {
         showOnlyLastHeartbeat: {
             type: Boolean,
         },
+        /** Should alerts with sound when a system down? */
+        enableAudibleAlerts: {
+            type: Boolean,
+        },
     },
     data() {
         return {};
