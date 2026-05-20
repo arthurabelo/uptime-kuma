@@ -450,6 +450,7 @@ class StatusPage extends BeanModel {
             analyticsType: this.analytics_type,
             showCertificateExpiry: !!this.show_certificate_expiry,
             showOnlyLastHeartbeat: !!this.show_only_last_heartbeat,
+            enableAudibleAlerts: !!this.enable_audible_alerts,
             rssTitle: this.rss_title,
         };
     }
@@ -477,6 +478,7 @@ class StatusPage extends BeanModel {
             analyticsType: this.analytics_type,
             showCertificateExpiry: !!this.show_certificate_expiry,
             showOnlyLastHeartbeat: !!this.show_only_last_heartbeat,
+            enableAudibleAlerts: !!this.enable_audible_alerts,
             rssTitle: this.rss_title,
         };
     }
@@ -561,10 +563,10 @@ class StatusPage extends BeanModel {
 
             let maintenanceIDList = await R.getCol(
                 `
-                SELECT DISTINCT maintenance_id
-                FROM maintenance_status_page
-                WHERE status_page_id = ?
-            `,
+                    SELECT DISTINCT maintenance_id
+                    FROM maintenance_status_page
+                    WHERE status_page_id = ?
+                `,
                 [statusPageId]
             );
 
