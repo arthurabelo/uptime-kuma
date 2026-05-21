@@ -660,6 +660,8 @@ const favicon = new Favico({
     animation: "none",
 });
 
+let audibleAlertAudioContext = null;
+
 export default {
     components: {
         PublicGroupList,
@@ -1552,7 +1554,7 @@ export default {
         },
         /**
          * Synthesize voice
-         * @param {string} MonitorName
+         * @param {string} MonitorName Monitor name
          * @returns {void}
          */
         announceDownStatus(MonitorName) {
@@ -1569,31 +1571,47 @@ export default {
             }
             */
 
-            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            if (!AudioContext) {
+                return;
+            }
 
-            const playBeep = (time) => {
-                const oscillator = audioContext.createOscillator();
-                const volumeControl = audioContext.createGain();
+            if (!audibleAlertAudioContext) {
+                audibleAlertAudioContext = new AudioContext();
+            }
 
-                oscillator.connect(volumeControl);
-                volumeControl.connect(audioContext.destination);
+            const audioContext = audibleAlertAudioContext;
+            const playAlert = () => {
+                const startAt = audioContext.currentTime + 0.14;
 
-                oscillator.type = "square";
-                oscillator.frequency.value = 900;
+                const createChime = (frequency, startTime, volume, decay) => {
+                    const oscillator = audioContext.createOscillator();
+                    const volumeControl = audioContext.createGain();
 
-                volumeControl.gain.setValueAtTime(1.0, time);
-                volumeControl.gain.exponentialRampToValueAtTime(0.01, time + 0.3);
+                    oscillator.connect(volumeControl);
+                    volumeControl.connect(audioContext.destination);
 
-                oscillator.start(time);
-                oscillator.stop(time + 0.3);
+                    oscillator.type = "sine";
+                    oscillator.frequency.setValueAtTime(frequency, startTime);
+
+                    volumeControl.gain.setValueAtTime(0.0001, startTime);
+                    volumeControl.gain.linearRampToValueAtTime(volume, startTime + 0.05);
+                    volumeControl.gain.exponentialRampToValueAtTime(0.0001, startTime + decay);
+
+                    oscillator.start(startTime);
+                    oscillator.stop(startTime + decay + 0.05);
+                };
+
+                createChime(783.99, startAt, 0.13, 1.15);
+                createChime(523.25, startAt + 0.3, 0.12, 1.1);
+                createChime(261.63, startAt + 0.32, 0.035, 0.85);
             };
 
-            const now = audioContext.currentTime;
-
-            playBeep(now);
-            playBeep(now + 0.45);
-            playBeep(now + 0.9);
-            playBeep(now + 1.35);
+            if (audioContext.state === "suspended") {
+                audioContext.resume().then(playAlert);
+            } else {
+                playAlert();
+            }
         },
     },
 };
