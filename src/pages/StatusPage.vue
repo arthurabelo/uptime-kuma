@@ -637,12 +637,12 @@ import IncidentManageModal from "../components/IncidentManageModal.vue";
 import IncidentEditForm from "../components/IncidentEditForm.vue";
 import {getResBaseURL} from "../util-frontend";
 import {
-    MAINTENANCE,
-    STATUS_PAGE_ALL_DOWN,
-    STATUS_PAGE_ALL_UP,
-    STATUS_PAGE_MAINTENANCE,
-    STATUS_PAGE_PARTIAL_DOWN,
-    UP,
+  MAINTENANCE,
+  STATUS_PAGE_ALL_DOWN,
+  STATUS_PAGE_ALL_UP,
+  STATUS_PAGE_MAINTENANCE,
+  STATUS_PAGE_PARTIAL_DOWN,
+  UP,
 } from "../util.ts";
 import Tag from "../components/Tag.vue";
 import VueMultiselect from "vue-multiselect";
@@ -977,7 +977,7 @@ export default {
         
         "$root.heartbeatList": {
             handler(newHeartbeats) {
-                if (this.config.enableAudibleAlerts) {return;}
+                if (!this.config.enableAudibleAlerts) {return;}
                 if (!newHeartbeats) {return;}
 
                 const PageMonitors = {};
@@ -995,9 +995,12 @@ export default {
                     if (!newHeartbeats[id]) {continue;}
 
                     const BeatsHistory = newHeartbeats[id];
-                    if (!BeatsHistory || !BeatsHistory.length === 0) {continue;}
+                    if (!BeatsHistory || BeatsHistory.length === 0) {continue;}
 
                     const LastBeat = BeatsHistory[BeatsHistory.length - 1];
+                    
+                    if(!LastBeat) {continue;}
+                        
                     const currentStatus = LastBeat.status;
 
                     if (currentStatus === 0 && !alreadyAnnounced[id]) {
