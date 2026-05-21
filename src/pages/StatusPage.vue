@@ -501,11 +501,62 @@
                     👀 {{ $t("statusPageNothing") }}
                 </div>
 
+                <div
+                    v-if="downMonitors.length > 0"
+                    class="shadow-box alert alert-danger mb-4 down-monitors-highlight"
+                    data-testid="down-monitors-highlight"
+                >
+                    <div class="down-monitors-title mb-2">
+                        <font-awesome-icon icon="exclamation-triangle" class="me-2" />
+                        <strong>{{ $t("Down") }} ({{ downMonitors.length }})</strong>
+                    </div>
+
+                    <ul class="down-monitors-list mb-0">
+                        <li v-for="monitor in downMonitors" :key="monitor.id">
+                            <a
+                                v-if="monitor.sendUrl && monitor.url && monitor.url !== 'https://'"
+                                :href="monitor.url"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                            >
+                                {{ monitor.name }}
+                            </a>
+                            <span v-else>{{ monitor.name }}</span>
+                            <span class="monitor-group-name ms-2">
+                                ({{ monitor.groupName }}
+                                <template v-if="monitor.slidePositionText">
+                                    • {{ $t("Slide") }} {{ monitor.slidePositionText }}
+                                </template>
+                                )
+                            </span>
+                        </li>
+                    </ul>
+                </div>
+
+                <div v-if="showSlideshowControls" class="d-flex justify-content-center align-items-center mb-3 gap-2">
+                    <button
+                        class="btn btn-outline-secondary btn-sm"
+                        :title="$t('Previous Slide')"
+                        @click="previousSlide"
+                    >
+                        « {{ $t("Previous Slide") }}
+                    </button>
+                    <button class="btn btn-outline-primary btn-sm" @click="toggleSlideshowPause">
+                        {{ isSlideshowPaused ? $t("Play") : $t("Pause") }}
+                    </button>
+                    <button class="btn btn-outline-secondary btn-sm" :title="$t('Next Slide')" @click="nextSlide">
+                        {{ $t("Next") }} »
+                    </button>
+                    <span class="small text-secondary ms-2">{{ slideshowPositionText }}</span>
+                </div>
+
                 <PublicGroupList
                     :edit-mode="enableEditMode"
                     :show-tags="config.showTags"
                     :show-certificate-expiry="config.showCertificateExpiry"
                     :show-only-last-heartbeat="config.showOnlyLastHeartbeat"
+                    :enable-slideshow="slideshowEnabled"
+                    :active-group-index="activeSlideIndex"
                 />
             </div>
 
@@ -607,7 +658,7 @@
             {{ $t("deleteStatusPageMsg") }}
         </Confirm>
 
-        <component is="style" v-if="config.customCSS" type="text/css">
+        <component is="style" v-if="config.customCSS && !enableEditMode" type="text/css">
             {{ config.customCSS }}
         </component>
     </div>
@@ -629,6 +680,7 @@ import "vue-prism-editor/dist/prismeditor.min.css"; // import the styles somewhe
 import { useToast } from "vue-toastification";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
+import advancedStatusPageLayoutCSS from "../assets/status-page-advanced-layout.css?raw";
 import Confirm from "../components/Confirm.vue";
 import PublicGroupList from "../components/PublicGroupList.vue";
 import MaintenanceTime from "../components/MaintenanceTime.vue";
@@ -652,6 +704,14 @@ const toast = useToast();
 dayjs.extend(duration);
 
 const leavePageMsg = "Do you really want to leave? you have unsaved changes!";
+const defaultSlideshowInterval = 8;
+const minSlideshowInterval = 3;
+const maxSlideshowInterval = 300;
+const advancedStatusPageLayoutCSSMarkers = advancedStatusPageLayoutCSS.match(/\/\*[\s\S]*?\*\//g) || [];
+const advancedStatusPageLayoutCSSStart = advancedStatusPageLayoutCSSMarkers[0] || advancedStatusPageLayoutCSS.trim();
+const advancedStatusPageLayoutCSSEnd =
+    advancedStatusPageLayoutCSSMarkers[advancedStatusPageLayoutCSSMarkers.length - 1] ||
+    advancedStatusPageLayoutCSS.trim();
 
 // eslint-disable-next-line no-unused-vars
 let feedInterval;
@@ -725,6 +785,9 @@ export default {
             incidentHistoryLoading: false,
             incidentHistoryNextCursor: null,
             incidentHistoryHasMore: false,
+            activeSlideIndex: 0,
+            slideshowTimer: null,
+            isSlideshowPaused: false,
             audibleAlertLastStatus: {},
         };
     },
@@ -911,6 +974,57 @@ export default {
             }
             return groups;
         },
+
+        /**
+         * Whether slideshow feature should run in current context
+         * @returns {boolean} True if slideshow should be active
+         */
+        slideshowEnabled() {
+            return this.config.enableSlideshow && !this.editMode && this.$root.publicGroupList.length > 1;
+        },
+
+        /**
+         * Whether slideshow controls should be visible
+         * @returns {boolean} True if controls should be shown
+         */
+        showSlideshowControls() {
+            return this.slideshowEnabled && this.config.slideshowShowControls;
+        },
+
+        /**
+         * Interval in milliseconds for slide rotation
+         * @returns {number} Interval in ms
+         */
+        slideshowIntervalMs() {
+            const seconds = Number(this.config.slideshowInterval || defaultSlideshowInterval);
+            const normalized = Math.max(minSlideshowInterval, Math.min(maxSlideshowInterval, seconds));
+            return normalized * 1000;
+        },
+
+        /**
+         * Human-readable slideshow position label
+         * @returns {string} Slide position text
+         */
+        slideshowPositionText() {
+            const total = this.$root.publicGroupList.length;
+            if (!this.slideshowEnabled || total <= 0) {
+                return "";
+            }
+            return `${this.activeSlideIndex + 1}/${total}`;
+        },
+
+        /**
+         * Whether advanced status page layout CSS is currently enabled
+         * @returns {boolean} True when the advanced CSS block exists in custom CSS
+         */
+        advancedLayoutCSSEnabled: {
+            get() {
+                return this.hasAdvancedStatusPageLayoutCSS();
+            },
+            set(enabled) {
+                this.setAdvancedStatusPageLayoutCSS(enabled);
+            },
+        },
     },
     watch: {
         /**
@@ -923,6 +1037,7 @@ export default {
                 this.$root.getSocket().emit("getStatusPage", this.slug, (res) => {
                     if (res.ok) {
                         this.config = res.config;
+                        this.normalizeSlideshowConfig();
 
                         if (!this.config.customCSS) {
                             this.config.customCSS = "body {\n" + "  \n" + "}\n";
@@ -975,6 +1090,31 @@ export default {
                     }
                 }
             }
+        },
+
+        "$root.publicGroupList.length"() {
+            this.normalizeActiveSlideIndex();
+            this.syncSlideshow();
+        },
+
+        "config.enableSlideshow"() {
+            this.syncSlideshow();
+        },
+
+        "config.slideshowAutoPlay"() {
+            this.syncSlideshow();
+        },
+
+        "config.slideshowInterval"() {
+            this.syncSlideshow();
+        },
+
+        editMode() {
+            this.syncSlideshow();
+        },
+
+        isSlideshowPaused() {
+            this.syncSlideshow();
         },
 
         "$root.heartbeatList": {
@@ -1063,6 +1203,8 @@ export default {
                     this.config.domainNameList = [];
                 }
 
+                this.normalizeSlideshowConfig();
+
                 if (this.config.icon) {
                     this.imgDataUrl = this.config.icon;
                 }
@@ -1078,6 +1220,8 @@ export default {
 
                 this.loading = false;
 
+                this.updateHeartbeatList();
+
                 // Configure auto-refresh loop
                 feedInterval = setInterval(
                     () => {
@@ -1087,6 +1231,7 @@ export default {
                 );
 
                 this.updateUpdateTimer();
+                this.syncSlideshow();
             })
             .catch(function (error) {
                 if (error.response.status === 404) {
@@ -1095,7 +1240,6 @@ export default {
                 console.log(error);
             });
 
-        this.updateHeartbeatList();
         this.loadIncidentHistory();
 
         // Go to edit page if ?edit present
@@ -1104,7 +1248,137 @@ export default {
             this.edit();
         }
     },
+
+    beforeUnmount() {
+        this.stopSlideshowTimer();
+    },
+
     methods: {
+        /**
+         * Ensure slideshow-related config fields are initialized
+         * @returns {void}
+         */
+        normalizeSlideshowConfig() {
+            const parseDefaultTrueBoolean = (value) => !(value === false || value === 0 || value === "0");
+
+            this.config.enableSlideshow = Boolean(this.config.enableSlideshow);
+            this.config.slideshowAutoPlay = parseDefaultTrueBoolean(this.config.slideshowAutoPlay);
+            this.config.slideshowShowControls = parseDefaultTrueBoolean(this.config.slideshowShowControls);
+            this.config.slideshowLoop = parseDefaultTrueBoolean(this.config.slideshowLoop);
+
+            const rawInterval = Number(this.config.slideshowInterval || defaultSlideshowInterval);
+            this.config.slideshowInterval = Math.max(
+                minSlideshowInterval,
+                Math.min(maxSlideshowInterval, Number.isNaN(rawInterval) ? defaultSlideshowInterval : rawInterval)
+            );
+        },
+
+        /**
+         * Keep active slide index within valid range
+         * @returns {void}
+         */
+        normalizeActiveSlideIndex() {
+            const total = this.$root.publicGroupList.length;
+            if (total <= 0) {
+                this.activeSlideIndex = 0;
+                return;
+            }
+
+            if (this.activeSlideIndex >= total) {
+                this.activeSlideIndex = total - 1;
+            }
+
+            if (this.activeSlideIndex < 0) {
+                this.activeSlideIndex = 0;
+            }
+        },
+
+        /**
+         * Start slideshow interval timer
+         * @returns {void}
+         */
+        startSlideshowTimer() {
+            this.stopSlideshowTimer();
+            this.slideshowTimer = setInterval(() => {
+                this.nextSlide();
+            }, this.slideshowIntervalMs);
+        },
+
+        /**
+         * Stop slideshow interval timer
+         * @returns {void}
+         */
+        stopSlideshowTimer() {
+            if (this.slideshowTimer) {
+                clearInterval(this.slideshowTimer);
+                this.slideshowTimer = null;
+            }
+        },
+
+        /**
+         * Sync slideshow runtime according to current config/state
+         * @returns {void}
+         */
+        syncSlideshow() {
+            this.normalizeActiveSlideIndex();
+            if (!this.slideshowEnabled || !this.config.slideshowAutoPlay || this.isSlideshowPaused) {
+                this.stopSlideshowTimer();
+                return;
+            }
+
+            this.startSlideshowTimer();
+        },
+
+        /**
+         * Toggle slideshow pause state
+         * @returns {void}
+         */
+        toggleSlideshowPause() {
+            if (!this.slideshowEnabled) {
+                return;
+            }
+            this.isSlideshowPaused = !this.isSlideshowPaused;
+        },
+
+        /**
+         * Go to previous slide
+         * @returns {void}
+         */
+        previousSlide() {
+            const total = this.$root.publicGroupList.length;
+            if (total <= 1) {
+                return;
+            }
+
+            if (this.activeSlideIndex === 0) {
+                this.activeSlideIndex = this.config.slideshowLoop ? total - 1 : 0;
+            } else {
+                this.activeSlideIndex -= 1;
+            }
+        },
+
+        /**
+         * Go to next slide
+         * @returns {void}
+         */
+        nextSlide() {
+            const total = this.$root.publicGroupList.length;
+            if (total <= 1) {
+                return;
+            }
+
+            if (this.activeSlideIndex >= total - 1) {
+                if (this.config.slideshowLoop) {
+                    this.activeSlideIndex = 0;
+                } else {
+                    this.activeSlideIndex = total - 1;
+                    this.isSlideshowPaused = true;
+                }
+            } else {
+                this.activeSlideIndex += 1;
+            }
+        },
+
         /**
          * Get status page data
          * It should be preloaded in window.preloadData
@@ -1129,6 +1403,72 @@ export default {
          */
         highlighter(code) {
             return highlight(code, languages.css);
+        },
+
+        /**
+         * Build marked CSS block for advanced status page layout
+         * @returns {string} Full CSS block with start and end markers
+         */
+        getAdvancedStatusPageLayoutBlock() {
+            return `${advancedStatusPageLayoutCSS.trim()}`;
+        },
+
+        /**
+         * Check whether advanced status page layout CSS exists in custom CSS
+         * @returns {boolean} True if marked block is present
+         */
+        hasAdvancedStatusPageLayoutCSS() {
+            return (
+                typeof this.config.customCSS === "string" &&
+                this.config.customCSS.includes(advancedStatusPageLayoutCSSStart) &&
+                this.config.customCSS.includes(advancedStatusPageLayoutCSSEnd)
+            );
+        },
+
+        /**
+         * Remove the marked advanced status page layout CSS block from custom CSS
+         * @param {string} css Existing custom CSS
+         * @returns {string} Custom CSS without the advanced block
+         */
+        removeAdvancedStatusPageLayoutCSS(css) {
+            if (typeof css !== "string" || css.length === 0) {
+                return "";
+            }
+
+            let result = css;
+            while (
+                result.includes(advancedStatusPageLayoutCSSStart) &&
+                result.includes(advancedStatusPageLayoutCSSEnd)
+            ) {
+                const startIndex = result.indexOf(advancedStatusPageLayoutCSSStart);
+                const endIndex = result.indexOf(advancedStatusPageLayoutCSSEnd, startIndex);
+
+                if (startIndex === -1 || endIndex === -1) {
+                    break;
+                }
+
+                const endMarkerEndIndex = endIndex + advancedStatusPageLayoutCSSEnd.length;
+                result = `${result.slice(0, startIndex)}${result.slice(endMarkerEndIndex)}`;
+            }
+
+            return result.replace(/\n{3,}/g, "\n\n").trim();
+        },
+
+        /**
+         * Enable or disable advanced status page layout CSS in custom CSS
+         * @param {boolean} enabled Enable state
+         * @returns {void}
+         */
+        setAdvancedStatusPageLayoutCSS(enabled) {
+            const existingCSS = typeof this.config.customCSS === "string" ? this.config.customCSS : "";
+            const cleanedCSS = this.removeAdvancedStatusPageLayoutCSS(existingCSS);
+
+            if (enabled) {
+                const block = this.getAdvancedStatusPageLayoutBlock();
+                this.config.customCSS = cleanedCSS ? `${cleanedCSS}\n\n${block}` : block;
+            } else {
+                this.config.customCSS = cleanedCSS;
+            }
         },
 
         /**
@@ -1905,6 +2245,23 @@ footer {
 
     .incident-list-box {
         padding: 0;
+    }
+}
+
+.down-monitors-highlight {
+    .down-monitors-title {
+        display: flex;
+        align-items: center;
+        font-size: 1.05rem;
+    }
+
+    .down-monitors-list {
+        margin: 0;
+        padding-left: 1.2rem;
+    }
+
+    .monitor-group-name {
+        opacity: 0.8;
     }
 }
 </style>
