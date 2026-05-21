@@ -126,7 +126,7 @@
                         {{ $t("enableAudibleAlerts") }}
                     </label>
                 </div>
-                
+
                 <!-- Domain Name List -->
                 <div class="my-3">
                     <label class="form-label">
@@ -619,15 +619,15 @@ import dayjs from "dayjs";
 import duration from "dayjs/plugin/duration";
 import Favico from "favico.js";
 // import highlighting library (you can use any library you want just return html string)
-import {highlight, languages} from "prismjs/components/prism-core";
+import { highlight, languages } from "prismjs/components/prism-core";
 import "prismjs/components/prism-css";
 import "prismjs/themes/prism-tomorrow.css"; // import syntax highlighting styles
 import ImageCropUpload from "vue-image-crop-upload";
 // import Prism Editor
-import {PrismEditor} from "vue-prism-editor";
+import { PrismEditor } from "vue-prism-editor";
 import "vue-prism-editor/dist/prismeditor.min.css"; // import the styles somewhere
-import {useToast} from "vue-toastification";
-import {marked} from "marked";
+import { useToast } from "vue-toastification";
+import { marked } from "marked";
 import DOMPurify from "dompurify";
 import Confirm from "../components/Confirm.vue";
 import PublicGroupList from "../components/PublicGroupList.vue";
@@ -635,14 +635,15 @@ import MaintenanceTime from "../components/MaintenanceTime.vue";
 import IncidentHistory from "../components/IncidentHistory.vue";
 import IncidentManageModal from "../components/IncidentManageModal.vue";
 import IncidentEditForm from "../components/IncidentEditForm.vue";
-import {getResBaseURL} from "../util-frontend";
+import { getResBaseURL } from "../util-frontend";
 import {
-  MAINTENANCE,
-  STATUS_PAGE_ALL_DOWN,
-  STATUS_PAGE_ALL_UP,
-  STATUS_PAGE_MAINTENANCE,
-  STATUS_PAGE_PARTIAL_DOWN,
-  UP,
+    DOWN,
+    MAINTENANCE,
+    STATUS_PAGE_ALL_DOWN,
+    STATUS_PAGE_ALL_UP,
+    STATUS_PAGE_MAINTENANCE,
+    STATUS_PAGE_PARTIAL_DOWN,
+    UP,
 } from "../util.ts";
 import Tag from "../components/Tag.vue";
 import VueMultiselect from "vue-multiselect";
@@ -658,8 +659,6 @@ let feedInterval;
 const favicon = new Favico({
     animation: "none",
 });
-
-let alreadyAnnounced = {};
 
 export default {
     components: {
@@ -724,6 +723,7 @@ export default {
             incidentHistoryLoading: false,
             incidentHistoryNextCursor: null,
             incidentHistoryHasMore: false,
+            audibleAlertLastStatus: {},
         };
     },
     computed: {
@@ -974,11 +974,12 @@ export default {
                 }
             }
         },
-        
+
         "$root.heartbeatList": {
             handler(newHeartbeats) {
-                if (!this.config.enableAudibleAlerts) {return;}
-                if (!newHeartbeats) {return;}
+                if (!newHeartbeats) {
+                    return;
+                }
 
                 const PageMonitors = {};
                 if (this.$root.publicGroupList) {
@@ -992,26 +993,40 @@ export default {
                 }
 
                 for (let id in newHeartbeats) {
-                    if (!newHeartbeats[id]) {continue;}
+                    if (!newHeartbeats[id]) {
+                        continue;
+                    }
+
+                    if (!(id in PageMonitors)) {
+                        continue;
+                    }
 
                     const BeatsHistory = newHeartbeats[id];
-                    if (!BeatsHistory || BeatsHistory.length === 0) {continue;}
+                    if (!BeatsHistory || BeatsHistory.length === 0) {
+                        continue;
+                    }
 
                     const LastBeat = BeatsHistory[BeatsHistory.length - 1];
-                    
-                    if(!LastBeat) {continue;}
-                        
-                    const currentStatus = LastBeat.status;
-
-                    if (currentStatus === 0 && !alreadyAnnounced[id]) {
-                        this.announceDownStatus(PageMonitors[id]);
-                        alreadyAnnounced[id] = true;
-                    } else if (currentStatus === 1) {
-                        alreadyAnnounced[id] = false;
+                    if (!LastBeat) {
+                        continue;
                     }
+
+                    const currentStatus = LastBeat.status;
+                    const previousStatus = this.audibleAlertLastStatus[id];
+
+                    if (
+                        this.config.enableAudibleAlerts &&
+                        previousStatus !== undefined &&
+                        previousStatus !== DOWN &&
+                        currentStatus === DOWN
+                    ) {
+                        this.announceDownStatus(PageMonitors[id]);
+                    }
+
+                    this.audibleAlertLastStatus[id] = currentStatus;
                 }
             },
-            deep: true
+            deep: true,
         },
     },
     async created() {
@@ -1054,13 +1069,6 @@ export default {
                 this.$root.publicGroupList = res.data.publicGroupList;
 
                 this.loading = false;
-
-                feedInterval = setInterval(
-                    () => {
-                        this.updateHeartbeatList();
-                    },
-                    Math.max(5, this.config.autoRefreshInterval) * 1000
-                );
 
                 this.incident = res.data.incident;
                 this.maintenanceList = res.data.maintenanceList;
@@ -1548,7 +1556,6 @@ export default {
          * @returns {void}
          */
         announceDownStatus(MonitorName) {
-
             /*
             if ("speechSynthesis" in window) {
                 window.speechSynthesis.cancel();
@@ -1562,7 +1569,7 @@ export default {
             }
             */
 
-            const audioContext = new (window.AudioContext || window.webkitAudioContext) ();
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
 
             const playBeep = (time) => {
                 const oscillator = audioContext.createOscillator();
@@ -1571,7 +1578,7 @@ export default {
                 oscillator.connect(volumeControl);
                 volumeControl.connect(audioContext.destination);
 
-                oscillator.type = 'square';
+                oscillator.type = "square";
                 oscillator.frequency.value = 900;
 
                 volumeControl.gain.setValueAtTime(1.0, time);
@@ -1584,9 +1591,9 @@ export default {
             const now = audioContext.currentTime;
 
             playBeep(now);
-            playBeep(now + 0.2);
-            playBeep(now + 0.4);
-            playBeep(now + 0.6);
+            playBeep(now + 0.45);
+            playBeep(now + 0.9);
+            playBeep(now + 1.35);
         },
     },
 };
