@@ -282,6 +282,18 @@
                 <!-- Custom CSS -->
                 <div class="my-3">
                     <div class="mb-1">{{ $t("Custom CSS") }}</div>
+                    <div class="form-check form-switch mb-2">
+                        <input
+                            id="advanced-layout-css-switch"
+                            v-model="advancedLayoutCSSEnabled"
+                            class="form-check-input"
+                            type="checkbox"
+                            data-testid="advanced-layout-css-switch"
+                        />
+                        <label class="form-check-label" for="advanced-layout-css-switch">
+                            {{ $t("Enable Advanced Layout CSS") }}
+                        </label>
+                    </div>
                     <prism-editor
                         v-model="config.customCSS"
                         class="css-editor"
@@ -1038,35 +1050,49 @@ export default {
         },
 
         /**
-         * Public monitors currently down, grouped with status page context
-         * @returns {object[]} List of down monitors
+         * Flattened unique list of monitors whose latest heartbeat is DOWN
+         * @returns {{ id: number, name: string, url: string, sendUrl: boolean, groupName: string, slidePositionText: string }[]} Down monitors
          */
         downMonitors() {
             const downMonitors = [];
-            const publicGroupList = Array.isArray(this.$root.publicGroupList) ? this.$root.publicGroupList : [];
-            const heartbeatList = this.$root.heartbeatList || {};
+            const monitorGroupMap = new Map();
+            const totalGroups = this.$root.publicGroupList.length;
 
-            publicGroupList.forEach((group, groupIndex) => {
-                const monitorList = Array.isArray(group.monitorList) ? group.monitorList : [];
-                monitorList.forEach((monitor) => {
-                    const monitorHeartbeats = heartbeatList[monitor.id];
-                    if (!Array.isArray(monitorHeartbeats) || monitorHeartbeats.length === 0) {
-                        return;
+            for (const [groupIndex, group] of this.$root.publicGroupList.entries()) {
+                const groupName = group?.name || this.$t("Untitled Group");
+                const slidePositionText = totalGroups > 0 ? `${groupIndex + 1}/${totalGroups}` : "";
+                const monitorList = Array.isArray(group?.monitorList) ? group.monitorList : [];
+
+                for (const monitor of monitorList) {
+                    const monitorId = monitor?.id;
+
+                    if (!monitorId || monitorGroupMap.has(monitorId)) {
+                        continue;
                     }
 
-                    const lastHeartbeat = monitorHeartbeats[monitorHeartbeats.length - 1];
-                    if (!lastHeartbeat || lastHeartbeat.status !== DOWN) {
-                        return;
-                    }
-
-                    downMonitors.push({
-                        ...monitor,
-                        groupName: group.name,
-                        slidePositionText:
-                            publicGroupList.length > 1 ? `${groupIndex + 1}/${publicGroupList.length}` : "",
+                    monitorGroupMap.set(monitorId, {
+                        groupName,
+                        slidePositionText,
                     });
+                }
+            }
+
+            for (const [monitorId, monitor] of Object.entries(this.$root.publicMonitorList)) {
+                if (this.$root.publicLastHeartbeatList?.[monitorId]?.status !== DOWN) {
+                    continue;
+                }
+
+                const groupInfo = monitorGroupMap.get(Number(monitorId)) || monitorGroupMap.get(monitorId) || {};
+
+                downMonitors.push({
+                    id: Number(monitorId),
+                    name: monitor?.name || `#${monitorId}`,
+                    url: monitor?.url,
+                    sendUrl: monitor?.sendUrl,
+                    groupName: groupInfo.groupName || "",
+                    slidePositionText: groupInfo.slidePositionText || "",
                 });
-            });
+            }
 
             return downMonitors;
         },

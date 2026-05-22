@@ -2,7 +2,7 @@
     <!-- Group List -->
     <Draggable v-model="$root.publicGroupList" :disabled="!editMode" item-key="id" :animation="100">
         <template #item="group">
-            <div class="mb-5" data-testid="group">
+            <div v-show="!enableSlideshow || group.index === activeGroupIndex" class="mb-5" data-testid="group">
                 <!-- Group Title -->
                 <h2 class="group-title">
                     <font-awesome-icon v-if="editMode && showGroupDrag" icon="arrows-alt-v" class="action drag me-3" />
@@ -164,6 +164,15 @@ export default {
         /** Should only the last heartbeat be shown? */
         showOnlyLastHeartbeat: {
             type: Boolean,
+        },
+        /** Whether only the active slideshow group should be shown */
+        enableSlideshow: {
+            type: Boolean,
+        },
+        /** Active group index in slideshow mode */
+        activeGroupIndex: {
+            type: Number,
+            default: 0,
         },
         /** Should alerts with sound when a system down? */
         enableAudibleAlerts: {
