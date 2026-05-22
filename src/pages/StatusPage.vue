@@ -127,6 +127,71 @@
                     </label>
                 </div>
 
+                <hr />
+
+                <div class="my-3 form-check form-switch">
+                    <input
+                        id="enable-slideshow"
+                        v-model="config.enableSlideshow"
+                        class="form-check-input"
+                        type="checkbox"
+                    />
+                    <label class="form-check-label" for="enable-slideshow">
+                        {{ $t("Status Page Slideshow") }}
+                    </label>
+                </div>
+
+                <template v-if="config.enableSlideshow">
+                    <div class="my-3">
+                        <label for="slideshow-interval" class="form-label">{{ $t("Slideshow Interval") }}</label>
+                        <input
+                            id="slideshow-interval"
+                            v-model.number="config.slideshowInterval"
+                            type="number"
+                            class="form-control"
+                            :min="3"
+                            :max="300"
+                        />
+                        <div class="form-text">{{ $t("Slideshow Interval Description") }}</div>
+                    </div>
+
+                    <div class="my-3 form-check form-switch">
+                        <input
+                            id="slideshow-autoplay"
+                            v-model="config.slideshowAutoPlay"
+                            class="form-check-input"
+                            type="checkbox"
+                        />
+                        <label class="form-check-label" for="slideshow-autoplay">
+                            {{ $t("Slideshow Auto Play") }}
+                        </label>
+                    </div>
+
+                    <div class="my-3 form-check form-switch">
+                        <input
+                            id="slideshow-loop"
+                            v-model="config.slideshowLoop"
+                            class="form-check-input"
+                            type="checkbox"
+                        />
+                        <label class="form-check-label" for="slideshow-loop">
+                            {{ $t("Slideshow Loop") }}
+                        </label>
+                    </div>
+
+                    <div class="my-3 form-check form-switch">
+                        <input
+                            id="slideshow-show-controls"
+                            v-model="config.slideshowShowControls"
+                            class="form-check-input"
+                            type="checkbox"
+                        />
+                        <label class="form-check-label" for="slideshow-show-controls">
+                            {{ $t("Show Slideshow Controls") }}
+                        </label>
+                    </div>
+                </template>
+
                 <!-- Domain Name List -->
                 <div class="my-3">
                     <label class="form-label">
@@ -707,11 +772,8 @@ const leavePageMsg = "Do you really want to leave? you have unsaved changes!";
 const defaultSlideshowInterval = 8;
 const minSlideshowInterval = 3;
 const maxSlideshowInterval = 300;
-const advancedStatusPageLayoutCSSMarkers = advancedStatusPageLayoutCSS.match(/\/\*[\s\S]*?\*\//g) || [];
-const advancedStatusPageLayoutCSSStart = advancedStatusPageLayoutCSSMarkers[0] || advancedStatusPageLayoutCSS.trim();
-const advancedStatusPageLayoutCSSEnd =
-    advancedStatusPageLayoutCSSMarkers[advancedStatusPageLayoutCSSMarkers.length - 1] ||
-    advancedStatusPageLayoutCSS.trim();
+const advancedStatusPageLayoutCSSStart = "/* UPTIME_KUMA_ADVANCED_STATUS_PAGE_LAYOUT_START */";
+const advancedStatusPageLayoutCSSEnd = "/* UPTIME_KUMA_ADVANCED_STATUS_PAGE_LAYOUT_END */";
 
 // eslint-disable-next-line no-unused-vars
 let feedInterval;
@@ -976,6 +1038,40 @@ export default {
         },
 
         /**
+         * Public monitors currently down, grouped with status page context
+         * @returns {object[]} List of down monitors
+         */
+        downMonitors() {
+            const downMonitors = [];
+            const publicGroupList = Array.isArray(this.$root.publicGroupList) ? this.$root.publicGroupList : [];
+            const heartbeatList = this.$root.heartbeatList || {};
+
+            publicGroupList.forEach((group, groupIndex) => {
+                const monitorList = Array.isArray(group.monitorList) ? group.monitorList : [];
+                monitorList.forEach((monitor) => {
+                    const monitorHeartbeats = heartbeatList[monitor.id];
+                    if (!Array.isArray(monitorHeartbeats) || monitorHeartbeats.length === 0) {
+                        return;
+                    }
+
+                    const lastHeartbeat = monitorHeartbeats[monitorHeartbeats.length - 1];
+                    if (!lastHeartbeat || lastHeartbeat.status !== DOWN) {
+                        return;
+                    }
+
+                    downMonitors.push({
+                        ...monitor,
+                        groupName: group.name,
+                        slidePositionText:
+                            publicGroupList.length > 1 ? `${groupIndex + 1}/${publicGroupList.length}` : "",
+                    });
+                });
+            });
+
+            return downMonitors;
+        },
+
+        /**
          * Whether slideshow feature should run in current context
          * @returns {boolean} True if slideshow should be active
          */
@@ -1037,6 +1133,7 @@ export default {
                 this.$root.getSocket().emit("getStatusPage", this.slug, (res) => {
                     if (res.ok) {
                         this.config = res.config;
+                        this.applyStatusPageTheme();
                         this.normalizeSlideshowConfig();
 
                         if (!this.config.customCSS) {
@@ -1198,6 +1295,7 @@ export default {
         this.getData()
             .then((res) => {
                 this.config = res.data.config;
+                this.applyStatusPageTheme();
 
                 if (!this.config.domainNameList) {
                     this.config.domainNameList = [];
@@ -1406,11 +1504,28 @@ export default {
         },
 
         /**
+         * Apply status page theme after config is loaded
+         * @returns {void}
+         */
+        applyStatusPageTheme() {
+            if (!this.config.theme) {
+                this.config.theme = "auto";
+            }
+
+            this.$root.statusPageTheme = this.config.theme;
+            this.loadedTheme = true;
+        },
+
+        /**
          * Build marked CSS block for advanced status page layout
          * @returns {string} Full CSS block with start and end markers
          */
         getAdvancedStatusPageLayoutBlock() {
-            return `${advancedStatusPageLayoutCSS.trim()}`;
+            return [
+                advancedStatusPageLayoutCSSStart,
+                advancedStatusPageLayoutCSS.trim(),
+                advancedStatusPageLayoutCSSEnd,
+            ].join("\n");
         },
 
         /**
@@ -1420,8 +1535,9 @@ export default {
         hasAdvancedStatusPageLayoutCSS() {
             return (
                 typeof this.config.customCSS === "string" &&
-                this.config.customCSS.includes(advancedStatusPageLayoutCSSStart) &&
-                this.config.customCSS.includes(advancedStatusPageLayoutCSSEnd)
+                ((this.config.customCSS.includes(advancedStatusPageLayoutCSSStart) &&
+                    this.config.customCSS.includes(advancedStatusPageLayoutCSSEnd)) ||
+                    this.config.customCSS.includes(advancedStatusPageLayoutCSS.trim()))
             );
         },
 
@@ -1450,6 +1566,8 @@ export default {
                 const endMarkerEndIndex = endIndex + advancedStatusPageLayoutCSSEnd.length;
                 result = `${result.slice(0, startIndex)}${result.slice(endMarkerEndIndex)}`;
             }
+
+            result = result.replace(advancedStatusPageLayoutCSS.trim(), "");
 
             return result.replace(/\n{3,}/g, "\n\n").trim();
         },
