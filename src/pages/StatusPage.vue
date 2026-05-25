@@ -121,6 +121,7 @@
                         v-model="config.enableAudibleAlerts"
                         class="form-check-input"
                         type="checkbox"
+                        @change="prepareAudibleAlertAudioContext"
                     />
                     <label class="form-check-label" for="enable-audio-alerts">
                         {{ $t("enableAudibleAlerts") }}
@@ -1371,9 +1372,12 @@ export default {
         if (this.$route.query.edit || this.$route.query.edit === null) {
             this.edit();
         }
+
+        window.addEventListener("pointerdown", this.prepareAudibleAlertAudioContext);
     },
 
     beforeUnmount() {
+        window.removeEventListener("pointerdown", this.prepareAudibleAlertAudioContext);
         this.stopSlideshowTimer();
     },
 
@@ -2095,6 +2099,25 @@ export default {
                 audioContext.resume().then(playAlert);
             } else {
                 playAlert();
+            }
+        },
+
+        /**
+         * Prepare browser audio from a user gesture so alerts can play later.
+         * @returns {void}
+         */
+        prepareAudibleAlertAudioContext() {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            if (!AudioContext || !this.config.enableAudibleAlerts) {
+                return;
+            }
+
+            if (!audibleAlertAudioContext) {
+                audibleAlertAudioContext = new AudioContext();
+            }
+
+            if (audibleAlertAudioContext.state === "suspended") {
+                audibleAlertAudioContext.resume();
             }
         },
     },
