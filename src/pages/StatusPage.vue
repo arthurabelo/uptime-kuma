@@ -2091,9 +2091,9 @@ export default {
                     oscillator.stop(startTime + decay + 0.05);
                 };
 
-                createChime(783.99, startAt, 0.13, 1.15);
-                createChime(523.25, startAt + 0.3, 0.12, 1.1);
-                createChime(261.63, startAt + 0.32, 0.035, 0.85);
+                createChime(783.99, startAt, 0.78, 1.15);
+                createChime(523.25, startAt + 0.3, 0.72, 1.1);
+                createChime(261.63, startAt + 0.32, 0.21, 0.85);
             };
 
             if (audioContext.state === "suspended") {
