@@ -1282,6 +1282,7 @@ export default {
 
                     if (
                         this.config.enableAudibleAlerts &&
+                        !this.enableEditMode &&
                         previousStatus !== undefined &&
                         previousStatus !== DOWN &&
                         currentStatus === DOWN
