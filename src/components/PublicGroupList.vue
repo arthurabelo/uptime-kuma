@@ -29,7 +29,7 @@
                     />
                 </h2>
 
-                <transition name="slide-fade-up">
+                <transition name="slide-fade-up" @after-enter="forceHeartbeatRender($event, group.element)">
                     <div v-if="!isGroupCollapsed(group.element)" class="shadow-box monitor-list mt-4 position-relative">
                         <div v-if="group.element.monitorList.length === 0" class="text-center no-monitor-msg">
                             {{ $t("No Monitors") }}
@@ -116,7 +116,11 @@
                                             </div>
                                         </div>
                                         <div :key="$root.userHeartbeatBar" class="col-3 col-xl-6">
-                                            <HeartbeatBar size="mid" :monitor-id="monitor.element.id" />
+                                            <HeartbeatBar
+                                                ref="'heartbeat-' + monitor.element.id"
+                                                size="mid"
+                                                :monitor-id="monitor.element.id"
+                                            />
                                         </div>
                                     </div>
                                 </div>
@@ -229,7 +233,7 @@ export default {
 
         /**
          * Get list of collapsed group identifiers from the query param.
-         * Vue Router normalises repeated params (?collapse=1&collapse=2) into an array.
+         * Vue Router normalizes repeated params (?collapse=1&collapse=2) into an array.
          * @returns {string[]} Collapsed group identifiers
          */
         getCollapsedList() {
@@ -237,7 +241,7 @@ export default {
             if (!raw) {
                 return [];
             }
-            // Normalise to array: a single query param is a string, repeated params are already an array
+            // Normalize to array: a single query param is a string, repeated params are already an array
             return [].concat(raw);
         },
 
@@ -330,6 +334,30 @@ export default {
                 return group.id.toString();
             }
             return `group${this.$root.publicGroupList.indexOf(group)}`;
+        },
+
+        /**
+         * Force a re-render of the heartbeat bars after a transition ends.
+         * @param {HTMLElement} el The parent element that finished the transition
+         * @param {object} group The current group object
+         */
+        forceHeartbeatRender(el, group) {
+            if (!group.monitorList || group.monitorList.length === 0) {
+                return;
+            }
+
+            const hasHeartbeatCanvas = group.monitorList.some((monitor) =>
+                el.querySelector(`[data-monitor-id="${monitor.id}"] .heartbeat-canvas`)
+            );
+
+            if (!hasHeartbeatCanvas) {
+                return;
+            }
+
+            // Wait one paint after the enter transition to ensure width is stable.
+            requestAnimationFrame(() => {
+                window.dispatchEvent(new Event("resize"));
+            });
         },
     },
 };
