@@ -471,6 +471,7 @@ class StatusPage extends BeanModel {
             slideshowLoop: StatusPage.parseDefaultTrueBoolean(this.slideshow_loop),
             slideshowShowControls: StatusPage.parseDefaultTrueBoolean(this.slideshow_show_controls),
             enableAudibleAlerts: !!this.enable_audible_alerts,
+            audibleAlertMode: this.audible_alert_mode || "oscillator",
             rssTitle: this.rss_title,
         };
     }
@@ -504,6 +505,7 @@ class StatusPage extends BeanModel {
             slideshowLoop: StatusPage.parseDefaultTrueBoolean(this.slideshow_loop),
             slideshowShowControls: StatusPage.parseDefaultTrueBoolean(this.slideshow_show_controls),
             enableAudibleAlerts: !!this.enable_audible_alerts,
+            audibleAlertMode: this.audible_alert_mode || "oscillator",
             rssTitle: this.rss_title,
         };
     }

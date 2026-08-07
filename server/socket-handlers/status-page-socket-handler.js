@@ -336,6 +336,7 @@ module.exports.statusPageSocketHandler = (socket) => {
             statusPage.rss_title = config.rssTitle;
             statusPage.show_only_last_heartbeat = config.showOnlyLastHeartbeat;
             statusPage.enable_audible_alerts = config.enableAudibleAlerts;
+            statusPage.audible_alert_mode = [ "oscillator", "speechsynthesis" ].includes(config.audibleAlertMode) ? config.audibleAlertMode : "oscillator";
             statusPage.show_certificate_expiry = config.showCertificateExpiry;
             const parseDefaultTrueBoolean = (value) => !(value === false || value === 0 || value === "0");
             statusPage.enable_slideshow = !!config.enableSlideshow;

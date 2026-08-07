@@ -127,6 +127,15 @@
                         {{ $t("enableAudibleAlerts") }}
                     </label>
                 </div>
+                <template v-if="config.enableAudibleAlerts">
+                    <div class="my-3">
+                        <label for="audible-alert-mode" class="form-label">{{ $t("audibleAlertMode") }}</label>
+                        <select id="audible-alert-mode" v-model="config.audibleAlertMode" class="form-select">
+                            <option value="oscillator">{{ $t("audibleAlertModeOscillator") }}</option>
+                            <option value="speechsynthesis">{{ $t("audibleAlertModeSpeechSynthesis") }}</option>
+                        </select>
+                    </div>
+                </template>
 
                 <hr />
 
@@ -749,15 +758,15 @@ import dayjs from "dayjs";
 import duration from "dayjs/plugin/duration";
 import Favico from "favico.js";
 // import highlighting library (you can use any library you want just return html string)
-import { highlight, languages } from "prismjs/components/prism-core";
+import {highlight, languages} from "prismjs/components/prism-core";
 import "prismjs/components/prism-css";
 import "prismjs/themes/prism-tomorrow.css"; // import syntax highlighting styles
 import ImageCropUpload from "vue-image-crop-upload";
 // import Prism Editor
-import { PrismEditor } from "vue-prism-editor";
+import {PrismEditor} from "vue-prism-editor";
 import "vue-prism-editor/dist/prismeditor.min.css"; // import the styles somewhere
-import { useToast } from "vue-toastification";
-import { marked } from "marked";
+import {useToast} from "vue-toastification";
+import {marked} from "marked";
 import DOMPurify from "dompurify";
 import advancedStatusPageLayoutCSS from "../assets/status-page-advanced-layout.css?raw";
 import Confirm from "../components/Confirm.vue";
@@ -766,7 +775,7 @@ import MaintenanceTime from "../components/MaintenanceTime.vue";
 import IncidentHistory from "../components/IncidentHistory.vue";
 import IncidentManageModal from "../components/IncidentManageModal.vue";
 import IncidentEditForm from "../components/IncidentEditForm.vue";
-import { getResBaseURL } from "../util-frontend";
+import {getResBaseURL} from "../util-frontend";
 import {
     DOWN,
     MAINTENANCE,
@@ -1163,6 +1172,7 @@ export default {
                         this.config = res.config;
                         this.applyStatusPageTheme();
                         this.normalizeSlideshowConfig();
+                        this.normalizeAudibleAlertConfig();
 
                         if (!this.config.customCSS) {
                             this.config.customCSS = "body {\n" + "  \n" + "}\n";
@@ -1331,6 +1341,7 @@ export default {
                 }
 
                 this.normalizeSlideshowConfig();
+                this.normalizeAudibleAlertConfig();
 
                 if (this.config.icon) {
                     this.imgDataUrl = this.config.icon;
@@ -1401,6 +1412,20 @@ export default {
                 minSlideshowInterval,
                 Math.min(maxSlideshowInterval, Number.isNaN(rawInterval) ? defaultSlideshowInterval : rawInterval)
             );
+        },
+
+        /**
+         * Ensure audible-alert-related config fields are initialized
+         * @returns {void}
+         */
+        normalizeAudibleAlertConfig() {
+            const validAudibleAlertModes = [ "oscillator", "speechsynthesis" ];
+
+            this.config.enableAudibleAlerts = Boolean(this.config.enableAudibleAlerts);
+
+            if (!validAudibleAlertModes.includes(this.config.audibleAlertMode)) {
+                this.config.audibleAlertMode = "oscillator";
+            }
         },
 
         /**
@@ -2048,18 +2073,17 @@ export default {
          * @returns {void}
          */
         announceDownStatus(MonitorName) {
-            /*
-            if ("speechSynthesis" in window) {
+            if (this.config.audibleAlertMode === "speechsynthesis" && "speechSynthesis" in window) {
                 window.speechSynthesis.cancel();
 
-                const message = new SpeechSynthesisUtterance(`${MonitorName} caiu`);
-                message.lang = "pt-BR";
+                const message = new SpeechSynthesisUtterance(this.$t("audibleAlertDownSpeech", [ MonitorName ]));
+                message.lang = document.documentElement.lang || "en";
                 message.rate = 1.0;
                 message.volume = 1.0;
 
                 window.speechSynthesis.speak(message);
+                return;
             }
-            */
 
             const AudioContext = window.AudioContext || window.webkitAudioContext;
             if (!AudioContext) {
@@ -2110,7 +2134,7 @@ export default {
          */
         prepareAudibleAlertAudioContext() {
             const AudioContext = window.AudioContext || window.webkitAudioContext;
-            if (!AudioContext || !this.config.enableAudibleAlerts) {
+            if (!AudioContext || !this.config.enableAudibleAlerts || this.config.audibleAlertMode !== "oscillator") {
                 return;
             }
 
