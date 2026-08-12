@@ -2068,12 +2068,62 @@ export default {
             });
         },
         /**
-         * Synthesize voice
+         * Synthesize voice or play oscillator chime depending on mode
          * @param {string} MonitorName Monitor name
          * @returns {void}
          */
         announceDownStatus(MonitorName) {
-            if (this.config.audibleAlertMode === "speechsynthesis" && "speechSynthesis" in window) {
+            const mode = this.config && this.config.audibleAlertMode ? this.config.audibleAlertMode : "oscillator";
+
+            // Prefer oscillator when explicitly selected
+            if (mode === "oscillator") {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                if (!AudioContext) {
+                    return;
+                }
+
+                if (!audibleAlertAudioContext) {
+                    audibleAlertAudioContext = new AudioContext();
+                }
+
+                const audioContext = audibleAlertAudioContext;
+                const playAlert = () => {
+                    const startAt = audioContext.currentTime + 0.14;
+
+                    const createChime = (frequency, startTime, volume, decay) => {
+                        const oscillator = audioContext.createOscillator();
+                        const volumeControl = audioContext.createGain();
+
+                        oscillator.connect(volumeControl);
+                        volumeControl.connect(audioContext.destination);
+
+                        oscillator.type = "sine";
+                        oscillator.frequency.setValueAtTime(frequency, startTime);
+
+                        volumeControl.gain.setValueAtTime(0.0001, startTime);
+                        volumeControl.gain.linearRampToValueAtTime(volume, startTime + 0.05);
+                        volumeControl.gain.exponentialRampToValueAtTime(0.0001, startTime + decay);
+
+                        oscillator.start(startTime);
+                        oscillator.stop(startTime + decay + 0.05);
+                    };
+
+                    createChime(783.99, startAt, 0.78, 1.15);
+                    createChime(523.25, startAt + 0.3, 0.72, 1.1);
+                    createChime(261.63, startAt + 0.32, 0.21, 0.85);
+                };
+
+                if (audioContext.state === "suspended") {
+                    audioContext.resume().then(playAlert);
+                } else {
+                    playAlert();
+                }
+
+                return;
+            }
+
+            // Fallback to speech synthesis when selected and available
+            if (mode === "speechsynthesis" && "speechSynthesis" in window) {
                 window.speechSynthesis.cancel();
 
                 const message = new SpeechSynthesisUtterance(this.$t("audibleAlertDownSpeech", [ MonitorName ]));
@@ -2083,48 +2133,6 @@ export default {
 
                 window.speechSynthesis.speak(message);
                 return;
-            }
-
-            const AudioContext = window.AudioContext || window.webkitAudioContext;
-            if (!AudioContext) {
-                return;
-            }
-
-            if (!audibleAlertAudioContext) {
-                audibleAlertAudioContext = new AudioContext();
-            }
-
-            const audioContext = audibleAlertAudioContext;
-            const playAlert = () => {
-                const startAt = audioContext.currentTime + 0.14;
-
-                const createChime = (frequency, startTime, volume, decay) => {
-                    const oscillator = audioContext.createOscillator();
-                    const volumeControl = audioContext.createGain();
-
-                    oscillator.connect(volumeControl);
-                    volumeControl.connect(audioContext.destination);
-
-                    oscillator.type = "sine";
-                    oscillator.frequency.setValueAtTime(frequency, startTime);
-
-                    volumeControl.gain.setValueAtTime(0.0001, startTime);
-                    volumeControl.gain.linearRampToValueAtTime(volume, startTime + 0.05);
-                    volumeControl.gain.exponentialRampToValueAtTime(0.0001, startTime + decay);
-
-                    oscillator.start(startTime);
-                    oscillator.stop(startTime + decay + 0.05);
-                };
-
-                createChime(783.99, startAt, 0.78, 1.15);
-                createChime(523.25, startAt + 0.3, 0.72, 1.1);
-                createChime(261.63, startAt + 0.32, 0.21, 0.85);
-            };
-
-            if (audioContext.state === "suspended") {
-                audioContext.resume().then(playAlert);
-            } else {
-                playAlert();
             }
         },
 
