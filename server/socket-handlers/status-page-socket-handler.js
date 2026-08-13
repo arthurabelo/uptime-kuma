@@ -1,5 +1,5 @@
 const { R } = require("redbean-node");
-const { checkLogin, setSetting } = require("../util-server");
+const { checkLogin } = require("../util-server");
 const dayjs = require("dayjs");
 const { log } = require("../../src/util");
 const ImageDataURI = require("../image-data-uri");
@@ -7,6 +7,7 @@ const Database = require("../database");
 const apicache = require("../modules/apicache");
 const StatusPage = require("../model/status_page");
 const { UptimeKumaServer } = require("../uptime-kuma-server");
+const { Settings } = require("../settings");
 
 /**
  * Validates incident data
@@ -334,10 +335,22 @@ module.exports.statusPageSocketHandler = (socket) => {
             statusPage.show_powered_by = config.showPoweredBy;
             statusPage.rss_title = config.rssTitle;
             statusPage.show_only_last_heartbeat = config.showOnlyLastHeartbeat;
+            statusPage.enable_audible_alerts = config.enableAudibleAlerts;
+            statusPage.audible_alert_mode = [ "oscillator", "speechsynthesis" ].includes(config.audibleAlertMode) ? config.audibleAlertMode : "oscillator";
             statusPage.show_certificate_expiry = config.showCertificateExpiry;
+            const parseDefaultTrueBoolean = (value) => !(value === false || value === 0 || value === "0");
+            statusPage.enable_slideshow = !!config.enableSlideshow;
+            statusPage.slideshow_interval = Number(config.slideshowInterval) || 8;
+            statusPage.slideshow_auto_play = parseDefaultTrueBoolean(config.slideshowAutoPlay);
+            statusPage.slideshow_loop = parseDefaultTrueBoolean(config.slideshowLoop);
+            statusPage.slideshow_show_controls = parseDefaultTrueBoolean(config.slideshowShowControls);
             statusPage.modified_date = R.isoDateTime();
             statusPage.analytics_id = config.analyticsId;
             statusPage.analytics_script_url = config.analyticsScriptUrl;
+            const validAnalyticsTypes = ["google", "umami", "plausible", "matomo", "rybbit"];
+            if (config.analyticsType !== null && !validAnalyticsTypes.includes(config.analyticsType)) {
+                throw new Error("Invalid analytics type");
+            }
             statusPage.analytics_type = config.analyticsType;
 
             await R.store(statusPage);
@@ -408,7 +421,7 @@ module.exports.statusPageSocketHandler = (socket) => {
             // Also change entry page to new slug if it is the default one, and slug is changed.
             if (server.entryPage === "statusPage-" + slug && statusPage.slug !== slug) {
                 server.entryPage = "statusPage-" + statusPage.slug;
-                await setSetting("entryPage", server.entryPage, "general");
+                await Settings.set("entryPage", server.entryPage, "general");
             }
 
             apicache.clear();
@@ -456,6 +469,11 @@ module.exports.statusPageSocketHandler = (socket) => {
             statusPage.theme = "auto";
             statusPage.icon = "";
             statusPage.autoRefreshInterval = 300;
+            statusPage.enable_slideshow = false;
+            statusPage.slideshow_interval = 8;
+            statusPage.slideshow_auto_play = true;
+            statusPage.slideshow_loop = true;
+            statusPage.slideshow_show_controls = true;
             await R.store(statusPage);
 
             callback({
@@ -465,7 +483,7 @@ module.exports.statusPageSocketHandler = (socket) => {
                 slug: slug,
             });
         } catch (error) {
-            console.error(error);
+            log.error("socket", error);
             callback({
                 ok: false,
                 msg: error.message,
@@ -486,7 +504,7 @@ module.exports.statusPageSocketHandler = (socket) => {
                 // Reset entry page if it is the default one.
                 if (server.entryPage === "statusPage-" + slug) {
                     server.entryPage = "dashboard";
-                    await setSetting("entryPage", server.entryPage, "general");
+                    await Settings.set("entryPage", server.entryPage, "general");
                 }
 
                 // No need to delete records from `status_page_cname`, because it has cascade foreign key.

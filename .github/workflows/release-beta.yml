@@ -76,6 +76,9 @@ jobs:
           username: ${{ secrets.GHCR_USERNAME }}
           password: ${{ secrets.GHCR_TOKEN }}
 
+      - name: Install opencode
+        run: curl -fsSL https://opencode.ai/install | bash
+
       - name: Run release-beta
         env:
           RELEASE_BETA_VERSION: ${{ inputs.version }}
@@ -83,6 +86,7 @@ jobs:
           DRY_RUN: ${{ inputs.dry_run }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_RUN_ID: ${{ github.run_id }}
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
         run: npm run release-beta
 
       - name: Upload dist.tar.gz as artifact

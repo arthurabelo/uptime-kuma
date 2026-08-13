@@ -114,6 +114,29 @@
                     </label>
                 </div>
 
+                <!-- Enable Audible Alerts -->
+                <div class="my-3 form-check form-switch">
+                    <input
+                        id="enable-audio-alerts"
+                        v-model="config.enableAudibleAlerts"
+                        class="form-check-input"
+                        type="checkbox"
+                        @change="prepareAudibleAlertAudioContext"
+                    />
+                    <label class="form-check-label" for="enable-audio-alerts">
+                        {{ $t("enableAudibleAlerts") }}
+                    </label>
+                </div>
+                <template v-if="config.enableAudibleAlerts">
+                    <div class="my-3">
+                        <label for="audible-alert-mode" class="form-label">{{ $t("audibleAlertMode") }}</label>
+                        <select id="audible-alert-mode" v-model="config.audibleAlertMode" class="form-select">
+                            <option value="oscillator">{{ $t("audibleAlertModeOscillator") }}</option>
+                            <option value="speechsynthesis">{{ $t("audibleAlertModeSpeechSynthesis") }}</option>
+                        </select>
+                    </div>
+                </template>
+
                 <hr />
 
                 <div class="my-3 form-check form-switch">
@@ -221,11 +244,12 @@
                         class="form-select"
                         data-testid="analytics-type-select"
                     >
-                        <option>{{ $t("None") }}</option>
-                        <option value="google">{{ $t("Google") }}</option>
-                        <option value="umami">{{ $t("Umami") }}</option>
-                        <option value="plausible">{{ $t("Plausible") }}</option>
-                        <option value="matomo">{{ $t("Matomo") }}</option>
+                        <option :value="null">{{ $t("None") }}</option>
+                        <option value="google">Google</option>
+                        <option value="umami">Umami</option>
+                        <option value="plausible">Plausible</option>
+                        <option value="matomo">Matomo</option>
+                        <option value="rybbit">Rybbit</option>
                     </select>
                 </div>
 
@@ -565,6 +589,38 @@
                     👀 {{ $t("statusPageNothing") }}
                 </div>
 
+                <div
+                    v-if="downMonitors.length > 0"
+                    class="shadow-box alert alert-danger mb-4 down-monitors-highlight"
+                    data-testid="down-monitors-highlight"
+                >
+                    <div class="down-monitors-title mb-2">
+                        <font-awesome-icon icon="exclamation-triangle" class="me-2" />
+                        <strong>{{ $t("Down") }} ({{ downMonitors.length }})</strong>
+                    </div>
+
+                    <ul class="down-monitors-list mb-0">
+                        <li v-for="monitor in downMonitors" :key="monitor.id">
+                            <a
+                                v-if="monitor.sendUrl && monitor.url && monitor.url !== 'https://'"
+                                :href="monitor.url"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                            >
+                                {{ monitor.name }}
+                            </a>
+                            <span v-else>{{ monitor.name }}</span>
+                            <span class="monitor-group-name ms-2">
+                                ({{ monitor.groupName }}
+                                <template v-if="monitor.slidePositionText">
+                                    • {{ $t("Slide") }} {{ monitor.slidePositionText }}
+                                </template>
+                                )
+                            </span>
+                        </li>
+                    </ul>
+                </div>
+
                 <div v-if="showSlideshowControls" class="d-flex justify-content-center align-items-center mb-3 gap-2">
                     <button
                         class="btn btn-outline-secondary btn-sm"
@@ -690,7 +746,7 @@
             {{ $t("deleteStatusPageMsg") }}
         </Confirm>
 
-        <component is="style" v-if="config.customCSS" type="text/css">
+        <component is="style" v-if="config.customCSS && !enableEditMode" type="text/css">
             {{ config.customCSS }}
         </component>
     </div>
@@ -702,15 +758,15 @@ import dayjs from "dayjs";
 import duration from "dayjs/plugin/duration";
 import Favico from "favico.js";
 // import highlighting library (you can use any library you want just return html string)
-import { highlight, languages } from "prismjs/components/prism-core";
+import {highlight, languages} from "prismjs/components/prism-core";
 import "prismjs/components/prism-css";
 import "prismjs/themes/prism-tomorrow.css"; // import syntax highlighting styles
 import ImageCropUpload from "vue-image-crop-upload";
 // import Prism Editor
-import { PrismEditor } from "vue-prism-editor";
+import {PrismEditor} from "vue-prism-editor";
 import "vue-prism-editor/dist/prismeditor.min.css"; // import the styles somewhere
-import { useToast } from "vue-toastification";
-import { marked } from "marked";
+import {useToast} from "vue-toastification";
+import {marked} from "marked";
 import DOMPurify from "dompurify";
 import advancedStatusPageLayoutCSS from "../assets/status-page-advanced-layout.css?raw";
 import Confirm from "../components/Confirm.vue";
@@ -719,14 +775,15 @@ import MaintenanceTime from "../components/MaintenanceTime.vue";
 import IncidentHistory from "../components/IncidentHistory.vue";
 import IncidentManageModal from "../components/IncidentManageModal.vue";
 import IncidentEditForm from "../components/IncidentEditForm.vue";
-import { getResBaseURL } from "../util-frontend";
+import {getResBaseURL} from "../util-frontend";
 import {
+    DOWN,
+    MAINTENANCE,
     STATUS_PAGE_ALL_DOWN,
     STATUS_PAGE_ALL_UP,
     STATUS_PAGE_MAINTENANCE,
     STATUS_PAGE_PARTIAL_DOWN,
     UP,
-    MAINTENANCE,
 } from "../util.ts";
 import Tag from "../components/Tag.vue";
 import VueMultiselect from "vue-multiselect";
@@ -738,8 +795,8 @@ const leavePageMsg = "Do you really want to leave? you have unsaved changes!";
 const defaultSlideshowInterval = 8;
 const minSlideshowInterval = 3;
 const maxSlideshowInterval = 300;
-const advancedStatusPageLayoutCSSStart = "/* UPTIME_KUMA_ADVANCED_LAYOUT_START */";
-const advancedStatusPageLayoutCSSEnd = "/* UPTIME_KUMA_ADVANCED_LAYOUT_END */";
+const advancedStatusPageLayoutCSSStart = "/* UPTIME_KUMA_ADVANCED_STATUS_PAGE_LAYOUT_START */";
+const advancedStatusPageLayoutCSSEnd = "/* UPTIME_KUMA_ADVANCED_STATUS_PAGE_LAYOUT_END */";
 
 // eslint-disable-next-line no-unused-vars
 let feedInterval;
@@ -747,6 +804,8 @@ let feedInterval;
 const favicon = new Favico({
     animation: "none",
 });
+
+let audibleAlertAudioContext = null;
 
 export default {
     components: {
@@ -790,7 +849,9 @@ export default {
             enableEditMode: false,
             enableEditIncidentMode: false,
             hasToken: false,
-            config: {},
+            config: {
+                analyticsType: null,
+            },
             selectedMonitor: null,
             incident: null,
             previousIncident: null,
@@ -812,6 +873,7 @@ export default {
             activeSlideIndex: 0,
             slideshowTimer: null,
             isSlideshowPaused: false,
+            audibleAlertLastStatus: {},
         };
     },
     computed: {
@@ -999,6 +1061,54 @@ export default {
         },
 
         /**
+         * Flattened unique list of monitors whose latest heartbeat is DOWN
+         * @returns {{ id: number, name: string, url: string, sendUrl: boolean, groupName: string, slidePositionText: string }[]} Down monitors
+         */
+        downMonitors() {
+            const downMonitors = [];
+            const monitorGroupMap = new Map();
+            const totalGroups = this.$root.publicGroupList.length;
+
+            for (const [groupIndex, group] of this.$root.publicGroupList.entries()) {
+                const groupName = group?.name || this.$t("Untitled Group");
+                const slidePositionText = totalGroups > 0 ? `${groupIndex + 1}/${totalGroups}` : "";
+                const monitorList = Array.isArray(group?.monitorList) ? group.monitorList : [];
+
+                for (const monitor of monitorList) {
+                    const monitorId = monitor?.id;
+
+                    if (!monitorId || monitorGroupMap.has(monitorId)) {
+                        continue;
+                    }
+
+                    monitorGroupMap.set(monitorId, {
+                        groupName,
+                        slidePositionText,
+                    });
+                }
+            }
+
+            for (const [monitorId, monitor] of Object.entries(this.$root.publicMonitorList)) {
+                if (this.$root.publicLastHeartbeatList?.[monitorId]?.status !== DOWN) {
+                    continue;
+                }
+
+                const groupInfo = monitorGroupMap.get(Number(monitorId)) || monitorGroupMap.get(monitorId) || {};
+
+                downMonitors.push({
+                    id: Number(monitorId),
+                    name: monitor?.name || `#${monitorId}`,
+                    url: monitor?.url,
+                    sendUrl: monitor?.sendUrl,
+                    groupName: groupInfo.groupName || "",
+                    slidePositionText: groupInfo.slidePositionText || "",
+                });
+            }
+
+            return downMonitors;
+        },
+
+        /**
          * Whether slideshow feature should run in current context
          * @returns {boolean} True if slideshow should be active
          */
@@ -1060,7 +1170,9 @@ export default {
                 this.$root.getSocket().emit("getStatusPage", this.slug, (res) => {
                     if (res.ok) {
                         this.config = res.config;
+                        this.applyStatusPageTheme();
                         this.normalizeSlideshowConfig();
+                        this.normalizeAudibleAlertConfig();
 
                         if (!this.config.customCSS) {
                             this.config.customCSS = "body {\n" + "  \n" + "}\n";
@@ -1139,6 +1251,61 @@ export default {
         isSlideshowPaused() {
             this.syncSlideshow();
         },
+
+        "$root.heartbeatList": {
+            handler(newHeartbeats) {
+                if (!newHeartbeats) {
+                    return;
+                }
+
+                const PageMonitors = {};
+                if (this.$root.publicGroupList) {
+                    this.$root.publicGroupList.forEach((grupo) => {
+                        if (grupo.monitorList) {
+                            grupo.monitorList.forEach((monitor) => {
+                                PageMonitors[monitor.id] = monitor.name;
+                            });
+                        }
+                    });
+                }
+
+                for (let id in newHeartbeats) {
+                    if (!newHeartbeats[id]) {
+                        continue;
+                    }
+
+                    if (!(id in PageMonitors)) {
+                        continue;
+                    }
+
+                    const BeatsHistory = newHeartbeats[id];
+                    if (!BeatsHistory || BeatsHistory.length === 0) {
+                        continue;
+                    }
+
+                    const LastBeat = BeatsHistory[BeatsHistory.length - 1];
+                    if (!LastBeat) {
+                        continue;
+                    }
+
+                    const currentStatus = LastBeat.status;
+                    const previousStatus = this.audibleAlertLastStatus[id];
+
+                    if (
+                        this.config.enableAudibleAlerts &&
+                        !this.enableEditMode &&
+                        previousStatus !== undefined &&
+                        previousStatus !== DOWN &&
+                        currentStatus === DOWN
+                    ) {
+                        this.announceDownStatus(PageMonitors[id]);
+                    }
+
+                    this.audibleAlertLastStatus[id] = currentStatus;
+                }
+            },
+            deep: true,
+        },
     },
     async created() {
         this.hasToken = "token" in this.$root.storage();
@@ -1167,12 +1334,14 @@ export default {
         this.getData()
             .then((res) => {
                 this.config = res.data.config;
+                this.applyStatusPageTheme();
 
                 if (!this.config.domainNameList) {
                     this.config.domainNameList = [];
                 }
 
                 this.normalizeSlideshowConfig();
+                this.normalizeAudibleAlertConfig();
 
                 if (this.config.icon) {
                     this.imgDataUrl = this.config.icon;
@@ -1183,18 +1352,13 @@ export default {
 
                 this.loading = false;
 
-                feedInterval = setInterval(
-                    () => {
-                        this.updateHeartbeatList();
-                    },
-                    Math.max(5, this.config.autoRefreshInterval) * 1000
-                );
-
                 this.incident = res.data.incident;
                 this.maintenanceList = res.data.maintenanceList;
                 this.$root.publicGroupList = res.data.publicGroupList;
 
                 this.loading = false;
+
+                this.updateHeartbeatList();
 
                 // Configure auto-refresh loop
                 feedInterval = setInterval(
@@ -1214,7 +1378,6 @@ export default {
                 console.log(error);
             });
 
-        this.updateHeartbeatList();
         this.loadIncidentHistory();
 
         // Go to edit page if ?edit present
@@ -1222,9 +1385,12 @@ export default {
         if (this.$route.query.edit || this.$route.query.edit === null) {
             this.edit();
         }
+
+        window.addEventListener("pointerdown", this.prepareAudibleAlertAudioContext);
     },
 
     beforeUnmount() {
+        window.removeEventListener("pointerdown", this.prepareAudibleAlertAudioContext);
         this.stopSlideshowTimer();
     },
 
@@ -1234,16 +1400,32 @@ export default {
          * @returns {void}
          */
         normalizeSlideshowConfig() {
+            const parseDefaultTrueBoolean = (value) => !(value === false || value === 0 || value === "0");
+
             this.config.enableSlideshow = Boolean(this.config.enableSlideshow);
-            this.config.slideshowAutoPlay = this.config.slideshowAutoPlay !== false;
-            this.config.slideshowShowControls = this.config.slideshowShowControls !== false;
-            this.config.slideshowLoop = this.config.slideshowLoop !== false;
+            this.config.slideshowAutoPlay = parseDefaultTrueBoolean(this.config.slideshowAutoPlay);
+            this.config.slideshowShowControls = parseDefaultTrueBoolean(this.config.slideshowShowControls);
+            this.config.slideshowLoop = parseDefaultTrueBoolean(this.config.slideshowLoop);
 
             const rawInterval = Number(this.config.slideshowInterval || defaultSlideshowInterval);
             this.config.slideshowInterval = Math.max(
                 minSlideshowInterval,
                 Math.min(maxSlideshowInterval, Number.isNaN(rawInterval) ? defaultSlideshowInterval : rawInterval)
             );
+        },
+
+        /**
+         * Ensure audible-alert-related config fields are initialized
+         * @returns {void}
+         */
+        normalizeAudibleAlertConfig() {
+            const validAudibleAlertModes = [ "oscillator", "speechsynthesis" ];
+
+            this.config.enableAudibleAlerts = Boolean(this.config.enableAudibleAlerts);
+
+            if (!validAudibleAlertModes.includes(this.config.audibleAlertMode)) {
+                this.config.audibleAlertMode = "oscillator";
+            }
         },
 
         /**
@@ -1379,11 +1561,28 @@ export default {
         },
 
         /**
+         * Apply status page theme after config is loaded
+         * @returns {void}
+         */
+        applyStatusPageTheme() {
+            if (!this.config.theme) {
+                this.config.theme = "auto";
+            }
+
+            this.$root.statusPageTheme = this.config.theme;
+            this.loadedTheme = true;
+        },
+
+        /**
          * Build marked CSS block for advanced status page layout
          * @returns {string} Full CSS block with start and end markers
          */
         getAdvancedStatusPageLayoutBlock() {
-            return `${advancedStatusPageLayoutCSSStart}\n${advancedStatusPageLayoutCSS.trim()}\n${advancedStatusPageLayoutCSSEnd}`;
+            return [
+                advancedStatusPageLayoutCSSStart,
+                advancedStatusPageLayoutCSS.trim(),
+                advancedStatusPageLayoutCSSEnd,
+            ].join("\n");
         },
 
         /**
@@ -1391,9 +1590,12 @@ export default {
          * @returns {boolean} True if marked block is present
          */
         hasAdvancedStatusPageLayoutCSS() {
-            return typeof this.config.customCSS === "string" &&
-                this.config.customCSS.includes(advancedStatusPageLayoutCSSStart) &&
-                this.config.customCSS.includes(advancedStatusPageLayoutCSSEnd);
+            return (
+                typeof this.config.customCSS === "string" &&
+                ((this.config.customCSS.includes(advancedStatusPageLayoutCSSStart) &&
+                    this.config.customCSS.includes(advancedStatusPageLayoutCSSEnd)) ||
+                    this.config.customCSS.includes(advancedStatusPageLayoutCSS.trim()))
+            );
         },
 
         /**
@@ -1407,7 +1609,10 @@ export default {
             }
 
             let result = css;
-            while (result.includes(advancedStatusPageLayoutCSSStart) && result.includes(advancedStatusPageLayoutCSSEnd)) {
+            while (
+                result.includes(advancedStatusPageLayoutCSSStart) &&
+                result.includes(advancedStatusPageLayoutCSSEnd)
+            ) {
                 const startIndex = result.indexOf(advancedStatusPageLayoutCSSStart);
                 const endIndex = result.indexOf(advancedStatusPageLayoutCSSEnd, startIndex);
 
@@ -1419,9 +1624,9 @@ export default {
                 result = `${result.slice(0, startIndex)}${result.slice(endMarkerEndIndex)}`;
             }
 
-            return result
-                .replace(/\n{3,}/g, "\n\n")
-                .trim();
+            result = result.replace(advancedStatusPageLayoutCSS.trim(), "");
+
+            return result.replace(/\n{3,}/g, "\n\n").trim();
         },
 
         /**
@@ -1862,6 +2067,93 @@ export default {
                 }
             });
         },
+        /**
+         * Synthesize voice or play oscillator chime depending on mode
+         * @param {string} MonitorName Monitor name
+         * @returns {void}
+         */
+        announceDownStatus(MonitorName) {
+            const mode = this.config && this.config.audibleAlertMode ? this.config.audibleAlertMode : "oscillator";
+
+            // Prefer oscillator when explicitly selected
+            if (mode === "oscillator") {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                if (!AudioContext) {
+                    return;
+                }
+
+                if (!audibleAlertAudioContext) {
+                    audibleAlertAudioContext = new AudioContext();
+                }
+
+                const audioContext = audibleAlertAudioContext;
+                const playAlert = () => {
+                    const startAt = audioContext.currentTime + 0.14;
+
+                    const createChime = (frequency, startTime, volume, decay) => {
+                        const oscillator = audioContext.createOscillator();
+                        const volumeControl = audioContext.createGain();
+
+                        oscillator.connect(volumeControl);
+                        volumeControl.connect(audioContext.destination);
+
+                        oscillator.type = "sine";
+                        oscillator.frequency.setValueAtTime(frequency, startTime);
+
+                        volumeControl.gain.setValueAtTime(0.0001, startTime);
+                        volumeControl.gain.linearRampToValueAtTime(volume, startTime + 0.05);
+                        volumeControl.gain.exponentialRampToValueAtTime(0.0001, startTime + decay);
+
+                        oscillator.start(startTime);
+                        oscillator.stop(startTime + decay + 0.05);
+                    };
+
+                    createChime(783.99, startAt, 0.78, 1.15);
+                    createChime(523.25, startAt + 0.3, 0.72, 1.1);
+                    createChime(261.63, startAt + 0.32, 0.21, 0.85);
+                };
+
+                if (audioContext.state === "suspended") {
+                    audioContext.resume().then(playAlert);
+                } else {
+                    playAlert();
+                }
+
+                return;
+            }
+
+            // Fallback to speech synthesis when selected and available
+            if (mode === "speechsynthesis" && "speechSynthesis" in window) {
+                window.speechSynthesis.cancel();
+
+                const message = new SpeechSynthesisUtterance(this.$t("audibleAlertDownSpeech", [ MonitorName ]));
+                message.lang = document.documentElement.lang || "en";
+                message.rate = 1.0;
+                message.volume = 1.0;
+
+                window.speechSynthesis.speak(message);
+                return;
+            }
+        },
+
+        /**
+         * Prepare browser audio from a user gesture so alerts can play later.
+         * @returns {void}
+         */
+        prepareAudibleAlertAudioContext() {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            if (!AudioContext || !this.config.enableAudibleAlerts || this.config.audibleAlertMode !== "oscillator") {
+                return;
+            }
+
+            if (!audibleAlertAudioContext) {
+                audibleAlertAudioContext = new AudioContext();
+            }
+
+            if (audibleAlertAudioContext.state === "suspended") {
+                audibleAlertAudioContext.resume();
+            }
+        },
     },
 };
 </script>
@@ -2154,6 +2446,23 @@ footer {
 
     .incident-list-box {
         padding: 0;
+    }
+}
+
+.down-monitors-highlight {
+    .down-monitors-title {
+        display: flex;
+        align-items: center;
+        font-size: 1.05rem;
+    }
+
+    .down-monitors-list {
+        margin: 0;
+        padding-left: 1.2rem;
+    }
+
+    .monitor-group-name {
+        opacity: 0.8;
     }
 }
 </style>
