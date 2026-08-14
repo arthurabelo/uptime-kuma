@@ -1210,7 +1210,7 @@
     "audibleAlertMode": "Método de Alerta Audível",
     "audibleAlertModeOscillator": "Oscillator (Chime)",
     "audibleAlertModeSpeechSynthesis": "Síntese de Fala (Voz)",
-    "audibleAlertDownSpeech": "{0} is down",
+    "audibleAlertDownSpeech": "{0} caiu",
     "Notifications Enabled": "Notificações ativadas",
     "Allow Notifications": "Permitir notificações",
     "Web Process Control Protocol": "Protocolo de Controle de Processos Web (WPCP)",

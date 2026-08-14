@@ -874,6 +874,8 @@ export default {
             slideshowTimer: null,
             isSlideshowPaused: false,
             audibleAlertLastStatus: {},
+            oscillatorAlertPlaying: false,
+            pendingOscillatorAlert: false,
         };
     },
     computed: {
@@ -2068,26 +2070,32 @@ export default {
             });
         },
         /**
-         * Synthesize voice or play oscillator chime depending on mode
-         * @param {string} MonitorName Monitor name
+         * Play a beep/chime alert using the Web Audio API.
+         * If a chime is already playing, this one will be queued and played after.
          * @returns {void}
          */
-        announceDownStatus(MonitorName) {
-            const mode = this.config && this.config.audibleAlertMode ? this.config.audibleAlertMode : "oscillator";
+        playOscillatorAlert() {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            if (!AudioContext) {
+                console.warn("Web Audio API is not supported in this browser.");
+                return;
+            }
 
-            // Prefer oscillator when explicitly selected
-            if (mode === "oscillator") {
-                const AudioContext = window.AudioContext || window.webkitAudioContext;
-                if (!AudioContext) {
-                    return;
-                }
-
+            try {
                 if (!audibleAlertAudioContext) {
                     audibleAlertAudioContext = new AudioContext();
                 }
 
                 const audioContext = audibleAlertAudioContext;
-                const playAlert = () => {
+
+                // If a chime is already playing, queue this one
+                if (this.oscillatorAlertPlaying) {
+                    this.pendingOscillatorAlert = true;
+                    return;
+                }
+
+                const playChimeSequence = () => {
+                    this.oscillatorAlertPlaying = true;
                     const startAt = audioContext.currentTime + 0.14;
 
                     const createChime = (frequency, startTime, volume, decay) => {
@@ -2108,31 +2116,127 @@ export default {
                         oscillator.stop(startTime + decay + 0.05);
                     };
 
-                    createChime(783.99, startAt, 0.78, 1.15);
-                    createChime(523.25, startAt + 0.3, 0.72, 1.1);
-                    createChime(261.63, startAt + 0.32, 0.21, 0.85);
+                    // Descending major chord sequence (G → E → C)
+                    createChime(783.99, startAt, 0.78, 1.15);   // G5 - highest note
+                    createChime(523.25, startAt + 0.3, 0.72, 1.1); // E4 - middle note
+                    createChime(261.63, startAt + 0.32, 0.21, 0.85); // C4 - lowest/bass note
+
+                    // Calculate total duration of the chime sequence (longest decay + buffer)
+                    const totalDuration = 1.15 + 0.05 + 0.32; // Main decay + buffer + additional offset
+                    const chimeEndTime = startAt + 1.15 + 0.05 + 0.32; // When the last chime fully fades
+
+                    // Wait for the chime to complete before allowing the next one
+                    setTimeout(() => {
+                        this.oscillatorAlertPlaying = false;
+                        if (this.pendingOscillatorAlert) {
+                            this.pendingOscillatorAlert = false;
+                            this.playOscillatorAlert();
+                        }
+                    }, chimeEndTime * 1000);
                 };
 
                 if (audioContext.state === "suspended") {
-                    audioContext.resume().then(playAlert);
+                    audioContext.resume().then(playChimeSequence).catch((error) => {
+                        console.warn("Failed to resume AudioContext:", error);
+                        this.oscillatorAlertPlaying = false;
+                    });
                 } else {
-                    playAlert();
+                    playChimeSequence();
                 }
+            } catch (error) {
+                console.error("Error playing oscillator alert:", error);
+                this.oscillatorAlertPlaying = false;
+            }
+        },
 
+        /**
+         * Trata o nome do monitor para garantir que siglas e nomes técnicos
+         * sejam pronunciados de forma clara e soletrada quando necessário.
+         * @param {string} name - Nome original do monitor
+         * @returns {string} Nome formatado para síntese de voz
+         */
+        sanitizeMonitorName(name) {
+            if (!name) return "";
+
+            return name
+                // Separa CamelCase (ex: ApiGateway -> Api Gateway)
+                .replace(/([a-z])([A-Z])/g, "$1 $2")
+                // Substitui delimitadores comuns por espaço
+                .replace(/[-_/]/g, " ")
+                // Isola siglas em maiúsculas com 2 a 5 letras (ex: PJE, SEI, API) e adiciona pausas entre as letras
+                .replace(/\b[A-Z]{2,5}\b/g, (acronym) => acronym.split("").join(". ") + ".")
+                // Remove múltiplos espaços extras
+                .replace(/\s+/g, " ")
+                .trim();
+        },
+
+        /**
+         * Speak the monitor name using the Web Speech API.
+         * @param {string} MonitorName - Name of the monitor that went down
+         * @returns {void}
+         */
+        speakDownStatus(MonitorName) {
+            if (!("speechSynthesis" in window)) {
+                console.warn("Speech synthesis is not supported in this browser.");
                 return;
             }
 
-            // Fallback to speech synthesis when selected and available
-            if (mode === "speechsynthesis" && "speechSynthesis" in window) {
-                window.speechSynthesis.cancel();
+            try {
+                const formattedName = this.sanitizeMonitorName(MonitorName);
 
-                const message = new SpeechSynthesisUtterance(this.$t("audibleAlertDownSpeech", [ MonitorName ]));
-                message.lang = document.documentElement.lang || "en";
-                message.rate = 1.0;
+                const message = new SpeechSynthesisUtterance(
+                    this.$t("audibleAlertDownSpeech", [ formattedName ])
+                );
+
+                const lang = document.documentElement.lang || "pt-BR";
+                message.lang = lang;
+
+                message.rate = 0.92;
+                message.pitch = 1.0;
                 message.volume = 1.0;
 
+                const voices = window.speechSynthesis.getVoices();
+                if (voices.length > 0) {
+                    const langPrefix = lang.split("-")[0].toLowerCase();
+
+                    const preferredVoice =
+                        voices.find((v) => v.name.includes("Francisca") && v.lang.toLowerCase().startsWith(langPrefix)) ||
+                        voices.find((v) => v.name.includes("Natural") && v.lang.toLowerCase().startsWith(langPrefix)) ||
+                        voices.find((v) => v.lang.toLowerCase().startsWith(langPrefix));
+
+                    if (preferredVoice) {
+                        message.voice = preferredVoice;
+                    }
+                }
+
+                message.onerror = (event) => {
+                    console.warn("Speech synthesis error:", event.error);
+                };
+
                 window.speechSynthesis.speak(message);
-                return;
+            } catch (error) {
+                console.error("Error during speech synthesis:", error);
+            }
+        },
+
+        /**
+         * Annonce down status based on configured alert mode.
+         * @param {string} MonitorName - Name of the monitor that went down
+         * @returns {void}
+         */
+        announceDownStatus(MonitorName) {
+            const mode = this.config?.audibleAlertMode || "oscillator";
+
+            switch (mode) {
+                case "oscillator":
+                    this.playOscillatorAlert();
+                    break;
+                case "speechsynthesis":
+                    this.speakDownStatus(MonitorName);
+                    break;
+                default:
+                    console.warn(`Unknown audible alert mode: ${mode}. Falling back to oscillator.`);
+                    this.playOscillatorAlert();
             }
         },
 
@@ -2141,17 +2245,33 @@ export default {
          * @returns {void}
          */
         prepareAudibleAlertAudioContext() {
-            const AudioContext = window.AudioContext || window.webkitAudioContext;
-            if (!AudioContext || !this.config.enableAudibleAlerts || this.config.audibleAlertMode !== "oscillator") {
+            // Only prepare audio context if alerts are enabled and using oscillator mode
+            if (!this.config?.enableAudibleAlerts || this.config?.audibleAlertMode !== "oscillator") {
                 return;
             }
 
-            if (!audibleAlertAudioContext) {
-                audibleAlertAudioContext = new AudioContext();
+            // Also skip if we're in edit mode - no need to prepare audio for editing
+            if (this.enableEditMode) {
+                return;
             }
 
-            if (audibleAlertAudioContext.state === "suspended") {
-                audibleAlertAudioContext.resume();
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            if (!AudioContext) {
+                return;
+            }
+
+            try {
+                if (!audibleAlertAudioContext) {
+                    audibleAlertAudioContext = new AudioContext();
+                }
+
+                if (audibleAlertAudioContext.state === "suspended") {
+                    audibleAlertAudioContext.resume().catch((error) => {
+                        console.warn("Failed to resume audio context:", error);
+                    });
+                }
+            } catch (error) {
+                console.error("Error preparing audio context:", error);
             }
         },
     },
