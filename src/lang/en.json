@@ -1148,6 +1148,8 @@
     "audibleAlertModeOscillator": "Oscillator (Chime)",
     "audibleAlertModeSpeechSynthesis": "Speech Synthesis (Voice)",
     "audibleAlertDownSpeech": "{0} is down",
+    "pronunciationDescription": "Optional: Define the pronunciation of the system name for voice alerts.",
+    "Pronunciation": "Pronunciation",
     "noOrBadCertificate": "No/Bad Certificate",
     "cacheBusterParam": "Add the {0} parameter",
     "cacheBusterParamDescription": "Randomly generated parameter to skip caches.",

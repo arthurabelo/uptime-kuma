@@ -1211,6 +1211,8 @@
     "audibleAlertModeOscillator": "Oscillator (Chime)",
     "audibleAlertModeSpeechSynthesis": "Síntese de Fala (Voz)",
     "audibleAlertDownSpeech": "{0} caiu",
+    "pronunciationDescription": "Opcional: Defina a pronúncia do nome do sistema para os alertas de voz.",
+    "Pronunciation": "Pronúncia",
     "Notifications Enabled": "Notificações ativadas",
     "Allow Notifications": "Permitir notificações",
     "Web Process Control Protocol": "Protocolo de Controle de Processos Web (WPCP)",

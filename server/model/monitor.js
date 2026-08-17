@@ -85,6 +85,7 @@ class Monitor extends BeanModel {
         let obj = {
             id: this.id,
             name: this.name,
+            pronunciation: this.pronunciation,
             sendUrl: this.sendUrl,
             type: this.type,
         };
@@ -126,6 +127,7 @@ class Monitor extends BeanModel {
         let data = {
             id: this.id,
             name: this.name,
+            pronunciation: this.pronunciation,
             description: this.description,
             path,
             pathName,

@@ -1096,10 +1096,10 @@ export default {
                 }
 
                 const groupInfo = monitorGroupMap.get(Number(monitorId)) || monitorGroupMap.get(monitorId) || {};
-
                 downMonitors.push({
                     id: Number(monitorId),
                     name: monitor?.name || `#${monitorId}`,
+                    pronunciation: this.$root.monitorList?.[monitorId]?.pronunciation || monitor?.pronunciation || "",
                     url: monitor?.url,
                     sendUrl: monitor?.sendUrl,
                     groupName: groupInfo.groupName || "",
@@ -1265,7 +1265,11 @@ export default {
                     this.$root.publicGroupList.forEach((grupo) => {
                         if (grupo.monitorList) {
                             grupo.monitorList.forEach((monitor) => {
-                                PageMonitors[monitor.id] = monitor.name;
+                                const fullMonitor = this.$root.monitorList?.[monitor.id];
+                                PageMonitors[monitor.id] = {
+                                    name: monitor.name,
+                                    pronunciation: monitor.pronunciation || fullMonitor?.pronunciation || "",
+                                };
                             });
                         }
                     });
@@ -1300,7 +1304,7 @@ export default {
                         previousStatus !== DOWN &&
                         currentStatus === DOWN
                     ) {
-                        this.announceDownStatus(PageMonitors[id]);
+                        this.announceDownStatus(PageMonitors[id] || { name: `#${id}`, pronunciation: "" });
                     }
 
                     this.audibleAlertLastStatus[id] = currentStatus;
@@ -2182,7 +2186,10 @@ export default {
             }
 
             try {
-                const formattedName = this.sanitizeMonitorName(MonitorName);
+                const displayName = typeof MonitorName === "object"
+                    ? (MonitorName?.pronunciation || MonitorName?.name || "")
+                    : MonitorName || "";
+                const formattedName = this.sanitizeMonitorName(displayName);
 
                 const message = new SpeechSynthesisUtterance(
                     this.$t("audibleAlertDownSpeech", [ formattedName ])

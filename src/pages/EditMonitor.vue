@@ -169,6 +169,20 @@
                                 />
                             </div>
 
+                            <!-- Pronunciation (Optional) -->
+                            <div class="my-3">
+                                <label for="pronunciation" class="form-label">{{ $t("Pronunciation") }}</label>
+                                <input
+                                    id="pronunciation"
+                                    v-model="monitor.pronunciation"
+                                    type="text"
+                                    class="form-control"
+                                    data-testid="pronunciation-input"
+                                    :placeholder="defaultFriendlyName"
+                                />
+                                <div class="form-text">{{ $t("pronunciationDescription") }}</div>
+                            </div>
+
                             <!-- Manual Status switcher -->
                             <div v-if="monitor.type === 'manual'" class="mb-3">
                                 <div class="btn-group w-100 mb-3">
@@ -3228,7 +3242,7 @@
 
 <script>
 import VueMultiselect from "vue-multiselect";
-import { useToast } from "vue-toastification";
+import {useToast} from "vue-toastification";
 import ActionSelect from "../components/ActionSelect.vue";
 import CopyableInput from "../components/CopyableInput.vue";
 import CreateGroupDialog from "../components/CreateGroupDialog.vue";
@@ -3238,8 +3252,8 @@ import DockerHostDialog from "../components/DockerHostDialog.vue";
 import RemoteBrowserDialog from "../components/RemoteBrowserDialog.vue";
 import ProxyDialog from "../components/ProxyDialog.vue";
 import TagsManager from "../components/TagsManager.vue";
-import { genSecret, MIN_INTERVAL_SECOND, sleep, TYPES_WITH_DOMAIN_EXPIRY_SUPPORT_VIA_FIELD } from "../util.ts";
-import { timeDurationFormatter } from "../util-frontend";
+import {genSecret, MIN_INTERVAL_SECOND, sleep, TYPES_WITH_DOMAIN_EXPIRY_SUPPORT_VIA_FIELD} from "../util.ts";
+import {timeDurationFormatter} from "../util-frontend";
 import isFQDN from "validator/lib/isFQDN";
 import isIP from "validator/lib/isIP";
 import HiddenInput from "../components/HiddenInput.vue";

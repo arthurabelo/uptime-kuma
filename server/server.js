@@ -83,7 +83,7 @@ if (isDev || process.env.UPTIME_KUMA_DEBUG_INSPECTOR === "1") {
         );
         inspectorHost = "0.0.0.0";
     }
-
+    inspector.close();
     inspector.open(9229, inspectorHost);
 }
 
@@ -845,6 +845,7 @@ let needSetup = false;
                 }
 
                 bean.name = monitor.name;
+                bean.pronunciation = monitor.pronunciation;
                 bean.description = monitor.description;
                 bean.parent = monitor.parent;
                 bean.type = monitor.type;
@@ -934,7 +935,6 @@ let needSetup = false;
                 bean.kafkaProducerMessage = monitor.kafkaProducerMessage;
                 bean.cacheBust = monitor.cacheBust;
                 bean.kafkaProducerSsl = monitor.kafkaProducerSsl;
-                bean.kafkaProducerAllowAutoTopicCreation = monitor.kafkaProducerAllowAutoTopicCreation;
                 bean.gamedigGivenPortOnly = monitor.gamedigGivenPortOnly;
                 bean.gamedigToken = monitor.gamedigToken;
                 bean.remote_browser = monitor.remote_browser;
