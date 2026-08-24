@@ -58,7 +58,7 @@ body {
 
     --fs-title: clamp(30px, 2.5vmin, 100px);
     --fs-badge: clamp(10px, 1.2vmin, 24px);
-    --fs-header: clamp(24px, 4vmin, 80px);
+    --fs-header: clamp(12px, 2vmin, 80px);
     --gap-grid: 1.5vmin;
     --pad-card: 1.5vmin;
     --radius: 1vmin;
@@ -67,6 +67,17 @@ body {
     /* Mini chart scales */
     --status-mini-chart-scale-color: #ffffff;
     --status-mini-chart-grid-color: rgba(255, 255, 255, 0.18);
+}
+
+/* ============================================================
+    REDUCE MARGIN AND PADDING OF SLIDESHOW BUTTONS
+    ============================================================ */
+.p-2 {
+    padding: .1rem !important;
+}
+
+.mb-3 {
+    margin-bottom: .1rem !important;
 }
 
 /* ============================================================
@@ -331,7 +342,7 @@ footer,
     height: auto !important;
     min-height: 0 !important;
     margin: 0 !important;
-    padding: 2.5vmin !important;
+    padding: 0.5vmin !important;
     background-color: #0d1117 !important;
     border: 1px solid var(--border) !important;
     border-radius: var(--radius) !important;
@@ -453,8 +464,8 @@ footer,
 }
 
 .overall-status svg {
-    width: 24px !important;
-    height: 24px !important;
+    width: 12px !important;
+    height: 12px !important;
 }
 
 .overall-status div {

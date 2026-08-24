@@ -3564,7 +3564,7 @@ message HealthCheckResponse {
         },
 
         // Filter result by active state, weight and alphabetical
-        // Only return groups which arent't itself and one of its descendants
+        // Only return groups which aren't itself and one of its descendants
         sortedGroupMonitorList() {
             let result = Object.values(this.$root.monitorList);
 
