@@ -29,6 +29,16 @@ class StatusPage extends BeanModel {
     static domainMappingList = {};
 
     /**
+     * Parse a boolean setting that defaults to true.
+     * Accepts false/0/"0" as false and treats everything else as true.
+     * @param {unknown} value Raw value
+     * @returns {boolean} Parsed boolean
+     */
+    static parseDefaultTrueBoolean(value) {
+        return !(value === false || value === 0 || value === "0");
+    }
+
+    /**
      * Handle responses to RSS pages
      * @param {Response} response Response object
      * @param {string} slug Status page slug
@@ -455,6 +465,13 @@ class StatusPage extends BeanModel {
             analyticsType: this.analytics_type,
             showCertificateExpiry: !!this.show_certificate_expiry,
             showOnlyLastHeartbeat: !!this.show_only_last_heartbeat,
+            enableSlideshow: !!this.enable_slideshow,
+            slideshowInterval: Number(this.slideshow_interval) || 8,
+            slideshowAutoPlay: StatusPage.parseDefaultTrueBoolean(this.slideshow_auto_play),
+            slideshowLoop: StatusPage.parseDefaultTrueBoolean(this.slideshow_loop),
+            slideshowShowControls: StatusPage.parseDefaultTrueBoolean(this.slideshow_show_controls),
+            enableAudibleAlerts: !!this.enable_audible_alerts,
+            audibleAlertMode: this.audible_alert_mode || "oscillator",
             rssTitle: this.rss_title,
         };
     }
@@ -482,6 +499,13 @@ class StatusPage extends BeanModel {
             analyticsType: this.analytics_type,
             showCertificateExpiry: !!this.show_certificate_expiry,
             showOnlyLastHeartbeat: !!this.show_only_last_heartbeat,
+            enableSlideshow: !!this.enable_slideshow,
+            slideshowInterval: Number(this.slideshow_interval) || 8,
+            slideshowAutoPlay: StatusPage.parseDefaultTrueBoolean(this.slideshow_auto_play),
+            slideshowLoop: StatusPage.parseDefaultTrueBoolean(this.slideshow_loop),
+            slideshowShowControls: StatusPage.parseDefaultTrueBoolean(this.slideshow_show_controls),
+            enableAudibleAlerts: !!this.enable_audible_alerts,
+            audibleAlertMode: this.audible_alert_mode || "oscillator",
             rssTitle: this.rss_title,
         };
     }
@@ -566,10 +590,10 @@ class StatusPage extends BeanModel {
 
             let maintenanceIDList = await R.getCol(
                 `
-                SELECT DISTINCT maintenance_id
-                FROM maintenance_status_page
-                WHERE status_page_id = ?
-            `,
+                    SELECT DISTINCT maintenance_id
+                    FROM maintenance_status_page
+                    WHERE status_page_id = ?
+                `,
                 [statusPageId]
             );
 

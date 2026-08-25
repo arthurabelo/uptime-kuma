@@ -1,5 +1,5 @@
 <template>
-    <div ref="wrap" class="wrap" :style="wrapStyle">
+    <div ref="wrap" class="wrap" :style="wrapStyle" :data-monitor-id="monitorId">
         <div class="hp-bar-big" :style="barStyle">
             <canvas
                 ref="canvas"
@@ -40,7 +40,7 @@
 
 <script>
 import dayjs from "dayjs";
-import { DOWN, UP, PENDING, MAINTENANCE } from "../util.ts";
+import { DOWN, MAINTENANCE, PENDING, UP } from "../util.ts";
 import Tooltip from "./Tooltip.vue";
 
 export default {
@@ -477,7 +477,7 @@ export default {
                 const beatCenterX = beatIndex * beatFullWidth + beatFullWidth / 2;
 
                 // Convert to viewport coordinates
-                const x = canvasRect.left + beatCenterX;
+                const x = canvasRect.left + beatCenterX * (canvasRect.width / this.canvasWidth);
                 const y = canvasRect.top;
 
                 // Check if tooltip would go off-screen and adjust position
@@ -691,8 +691,8 @@ export default {
             }
 
             const rect = canvas.getBoundingClientRect();
-            const x = event.clientX - rect.left;
             const beatFullWidth = this.beatWidth + this.beatHoverAreaPadding * 2;
+            const x = (event.clientX - rect.left) * (this.canvasWidth / rect.width);
             const beatIndex = Math.floor(x / beatFullWidth);
 
             if (beatIndex >= 0 && beatIndex < this.shortBeatList.length) {

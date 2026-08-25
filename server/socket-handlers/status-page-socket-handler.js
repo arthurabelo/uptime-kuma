@@ -335,7 +335,15 @@ module.exports.statusPageSocketHandler = (socket) => {
             statusPage.show_powered_by = config.showPoweredBy;
             statusPage.rss_title = config.rssTitle;
             statusPage.show_only_last_heartbeat = config.showOnlyLastHeartbeat;
+            statusPage.enable_audible_alerts = config.enableAudibleAlerts;
+            statusPage.audible_alert_mode = [ "oscillator", "speechsynthesis" ].includes(config.audibleAlertMode) ? config.audibleAlertMode : "oscillator";
             statusPage.show_certificate_expiry = config.showCertificateExpiry;
+            const parseDefaultTrueBoolean = (value) => !(value === false || value === 0 || value === "0");
+            statusPage.enable_slideshow = !!config.enableSlideshow;
+            statusPage.slideshow_interval = Number(config.slideshowInterval) || 8;
+            statusPage.slideshow_auto_play = parseDefaultTrueBoolean(config.slideshowAutoPlay);
+            statusPage.slideshow_loop = parseDefaultTrueBoolean(config.slideshowLoop);
+            statusPage.slideshow_show_controls = parseDefaultTrueBoolean(config.slideshowShowControls);
             statusPage.modified_date = R.isoDateTime();
             statusPage.analytics_id = config.analyticsId;
             statusPage.analytics_script_url = config.analyticsScriptUrl;
@@ -461,6 +469,11 @@ module.exports.statusPageSocketHandler = (socket) => {
             statusPage.theme = "auto";
             statusPage.icon = "";
             statusPage.autoRefreshInterval = 300;
+            statusPage.enable_slideshow = false;
+            statusPage.slideshow_interval = 8;
+            statusPage.slideshow_auto_play = true;
+            statusPage.slideshow_loop = true;
+            statusPage.slideshow_show_controls = true;
             await R.store(statusPage);
 
             callback({
