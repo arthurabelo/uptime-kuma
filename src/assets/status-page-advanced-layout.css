@@ -372,8 +372,9 @@ footer,
     ============================================================ */
 #app .heartbeat-canvas {
     width: 100% !important;
-    height: 100% !important;
+    height: auto !important;
     display: block !important;
+    object-fit: contain !important;
     transform: translateZ(0) !important;
     will-change: transform !important;
 }
@@ -392,7 +393,8 @@ footer,
     max-height: none !important;
     display: flex !important;
     flex-direction: column !important;
-    justify-content: flex-end !important;
+    align-items: center !important;
+    justify-content: center !important;
     overflow: hidden !important;
     padding-top: 0 !important;
     padding-bottom: 0 !important;
