@@ -47,4 +47,5 @@ jobs:
         run: npm run tsc
         continue-on-error: true
 
-      - uses: autofix-ci/action@635ffb0c9798bd160680f18fd73371e355b85f27
+      - if: github.repository == 'louislam/uptime-kuma'
+        uses: autofix-ci/action@635ffb0c9798bd160680f18fd73371e355b85f27
