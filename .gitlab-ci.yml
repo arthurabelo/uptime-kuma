@@ -9,7 +9,6 @@ deploy_uptime_kuma:
     # Garante que o Runner use o contexto do Docker Rootless
     - export PATH=$PATH:$HOME/bin
     - export DOCKER_HOST=unix://$XDG_RUNTIME_DIR/docker.sock
-    - export DOCKER_BUILDKIT=1
   script:
     - echo "Iniciando o build..."
     - docker build --target release -t uptime-kuma-custom -f docker/dockerfile .
