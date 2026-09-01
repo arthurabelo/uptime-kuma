@@ -40,7 +40,7 @@
 
 <script>
 import dayjs from "dayjs";
-import { DOWN, MAINTENANCE, PENDING, UP } from "../util.ts";
+import {DOWN, MAINTENANCE, PENDING, UP} from "../util.ts";
 import Tooltip from "./Tooltip.vue";
 
 export default {
@@ -325,6 +325,9 @@ export default {
         },
     },
     unmounted() {
+        if (this.resizeObserver) {
+            this.resizeObserver.disconnect();
+        }
         window.removeEventListener("resize", this.resize);
         // Clean up tooltip timeout
         if (this.tooltipTimeoutId) {
@@ -359,7 +362,16 @@ export default {
             this.beatHoverAreaPadding = Math.round(actualHoverAreaPadding) / window.devicePixelRatio;
         }
 
-        window.addEventListener("resize", this.resize);
+        // Utiliza o ResizeObserver para recalcular o canvas sempre que a div.wrap mudar de largura
+        if (this.$refs.wrap && typeof ResizeObserver !== 'undefined') {
+            this.resizeObserver = new ResizeObserver(() => {
+                this.resize();
+            });
+            this.resizeObserver.observe(this.$refs.wrap);
+        } else {
+            window.addEventListener("resize", this.resize);
+        }
+        
         this.resize();
 
         // Initial canvas draw
